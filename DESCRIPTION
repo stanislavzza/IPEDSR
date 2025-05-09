@@ -1,0 +1,12 @@
+Package: FUPeers
+Type: Package
+Title: Interface to the IPEDS databased
+Version: 0.1.0
+Author: Furman IR
+Maintainer: David Eubanks <david.eubanks@furman.edu>
+Description: Functions to pull data from the IPEDS database.
+License: NA
+Encoding: UTF-8
+LazyData: true
+Depends: tidyverse
+RoxygenNote: 7.3.2
