@@ -5,7 +5,7 @@
 #' @export
 my_dbListTables <- function(idbc, search_string){
 
-  tables <- odbc::dbListTables(idbc, table_type = "TABLE")
+  tables <- dbListTables(idbc, table_type = "TABLE")
   tables <- tables[str_detect(tables, search_string)]
 
   return(tables)
