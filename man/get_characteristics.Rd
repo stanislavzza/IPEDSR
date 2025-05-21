@@ -2,9 +2,9 @@
 % Please edit documentation in R/ipeds_characteristics.R
 \name{get_characteristics}
 \alias{get_characteristics}
-\title{Get institutional characteristics}
+\title{Get institutional characteristics for a single year}
 \usage{
-get_characteristics(idbc, year = NULL, UNITIDs = NULL)
+get_characteristics(idbc, year = NULL, UNITIDs = NULL, labels = TRUE)
 }
 \arguments{
 \item{idbc}{A database connector}
@@ -12,12 +12,15 @@ get_characteristics(idbc, year = NULL, UNITIDs = NULL)
 \item{year}{The year to get, or NULL (default) for the most recent year}
 
 \item{UNITIDs}{optional array of UNITIDs to filter to}
+
+\item{labels}{if TRUE, replace column names and cell entries with their
+labels. If FALSE, return the raw data.}
 }
 \value{
 a dataframe with institutional characteristics
 }
 \description{
-Get institutional characteristics
+Get institutional characteristics for a single year
 }
 \details{
 Apparently these tables include 'blob' columns that won't allow downloading

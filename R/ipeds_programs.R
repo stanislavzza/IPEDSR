@@ -63,7 +63,7 @@ get_cips <- function(idbc, UNITIDs = NULL, years = NULL, cip_codes = NULL, awlev
 get_cipcodes <- function(idbc, digits = NULL){
 
   # find the most recent values table
-  tname <- my_dbListTables(idbc, search_string = "^valuesets\\d\\d$") %>% max()
+  tname <- my_dbListTables(idbc, search_string = "^VALUESETS\\d\\d$") %>% max()
 
   # get the cipcodes
   tdf <- tbl(idbc,tname) %>%
@@ -74,8 +74,7 @@ get_cipcodes <- function(idbc, digits = NULL){
 
   if(!is.null(digits)) {
     tdf <- tdf %>%
-      mutate(CIPCODE = str_sub(CIPCODE, 1, digits)) %>%
-      distinct(CIPCODE, .keep_all = TRUE)
+      filter(nchar(CIPCODE) == digits)
   }
 
   return(tdf)

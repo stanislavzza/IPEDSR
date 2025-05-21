@@ -91,6 +91,7 @@ get_valueset <- function(idbc, my_table){
 #' @export
 get_ipeds_table <- function(idbc, table_name, year2, UNITIDs = NULL){
 
+  table_name <- toupper(table_name)
   values_tname <- str_c("valuesets", year2)
   vars_tname <- str_c("vartable", year2)
 
