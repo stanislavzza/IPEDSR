@@ -175,9 +175,8 @@ ipeds_get_enrollment <- function(idbc, UNITIDs = NULL, StudentTypeCode = 1){
 #' @param idbc database connector
 #' @param UNITIDs optional IDs to retrieve, or NULL for everything
 #' @return a dataframe with UNITID, Year, Retention, CohortSize
-#' @details The year has been adjusted so that the cohort size and retention
-#' rate are for the same group of students with cohort = year. A cohort column
-#' is included to make this clear.
+#' @details The cohort  = year - 1 since the retention rate is reported a year
+#' later. A cohort column is included to make this clear.
 #' @export
 get_retention <- function(idbc, UNITIDs = NULL){
   # find all the tables
@@ -193,7 +192,7 @@ get_retention <- function(idbc, UNITIDs = NULL){
 
     df <- tbl(idbc,tname) %>%
       select(UNITID,
-             Cohort_size = GRCOHRT,
+             Cohort_size = RRFTCTA, # not GRCOHRT,
              Retention   = RET_PCF)
 
     if(!is.null(UNITIDs)) {
@@ -212,8 +211,7 @@ get_retention <- function(idbc, UNITIDs = NULL){
   out <- out %>%
     group_by(UNITID) %>%
     arrange(Year) %>%
-    mutate(Retention = lead(Retention, 1),
-           Cohort = Year) %>%
+    mutate(Cohort = Year - 1) %>%
     ungroup()
 
   return(out)

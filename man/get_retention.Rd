@@ -18,7 +18,6 @@ a dataframe with UNITID, Year, Retention, CohortSize
 Get cohort size and retention rates
 }
 \details{
-The year has been adjusted so that the cohort size and retention
-rate are for the same group of students with cohort = year. A cohort column
-is included to make this clear.
+The cohort  = year - 1 since the retention rate is reported a year
+later. A cohort column is included to make this clear.
 }
