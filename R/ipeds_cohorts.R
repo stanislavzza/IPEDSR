@@ -190,10 +190,17 @@ get_retention <- function(idbc, UNITIDs = NULL){
     # applies to the prior year
     year <- as.integer(substr(tname, 3,6))
 
-    df <- tbl(idbc,tname) %>%
-      select(UNITID,
-             Cohort_size = RRFTCTA, # not GRCOHRT,
-             Retention   = RET_PCF)
+    if (year < 2007) {
+      df <- tbl(idbc,tname) %>%
+        select(UNITID,
+               # cohort size not available
+               Retention   = RET_PCF)
+    } else {
+      df <- tbl(idbc,tname) %>%
+        select(UNITID,
+               Cohort_size = RRFTCTA,
+               Retention   = RET_PCF)
+    }
 
     if(!is.null(UNITIDs)) {
       df <- df %>%
@@ -203,6 +210,14 @@ get_retention <- function(idbc, UNITIDs = NULL){
     df <- df %>%
       collect() %>%
       mutate(Year = year)
+
+    # add blank cohort column if it doesn't exist
+    if(!"Cohort_size" %in% names(df)) {
+      df <- df %>%
+        mutate(Cohort_size = NA)
+    }
+
+    df <- df |> select(UNITID, Year, Cohort_size, Retention)
 
     out <- rbind(out, df)
   }
