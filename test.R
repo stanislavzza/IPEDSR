@@ -4,7 +4,9 @@ library(duckdb)
 library(IPEDSR)
 
 # ipeds database connector -- change the path to your db
-idbc <- duckdb::dbConnect(duckdb(), dbdir = "data/ipeds.duckdb", read_only = TRUE)
+idbc <- duckdb::dbConnect(duckdb(), 
+                          dbdir = "data/ipeds.duckdb", 
+                          read_only = TRUE)
 
 # get the list of tables
 ipeds_tables <- duckdb::dbListTables(idbc, table_type = "TABLE")
