@@ -4,12 +4,12 @@
 
 #' Download a single IPEDS CSV file
 #' @param file_info Single row from file listing with download information
-#' @param download_dir Directory to store downloaded files (default: data/downloads)
+#' @param download_dir Directory to store downloaded files (default: persistent downloads directory)
 #' @param force_redownload Whether to redownload even if file exists
 #' @param verbose Whether to print progress messages
 #' @return Path to downloaded CSV file or NULL if failed
 #' @export
-download_ipeds_csv <- function(file_info, download_dir = file.path("data", "downloads"), 
+download_ipeds_csv <- function(file_info, download_dir = get_ipeds_downloads_path(), 
                               force_redownload = FALSE, verbose = TRUE) {
   
   # Check if we have a CSV link first, then fall back to ZIP
@@ -363,13 +363,13 @@ clean_ipeds_data <- function(data, table_name) {
 
 #' Download and process multiple IPEDS files
 #' @param file_list Data frame with file information (from scraping functions)
-#' @param download_dir Directory for downloads (default: data/downloads)
+#' @param download_dir Directory for downloads (default: persistent downloads directory)
 #' @param db_connection Database connection (optional)
 #' @param max_concurrent Maximum number of concurrent downloads
 #' @param verbose Whether to print progress
 #' @return Data frame with processing results
 #' @export
-batch_download_ipeds_files <- function(file_list, download_dir = file.path("data", "downloads"), 
+batch_download_ipeds_files <- function(file_list, download_dir = get_ipeds_downloads_path(), 
                                       db_connection = NULL, max_concurrent = 3,
                                       force_redownload = FALSE, verbose = TRUE) {
   
@@ -439,10 +439,13 @@ batch_download_ipeds_files <- function(file_list, download_dir = file.path("data
     if (!is.null(csv_path)) {
       results$download_success[i] <- TRUE
       
+      # Clean table name for database (remove .zip extension)
+      clean_table_name <- gsub("\\.zip$", "", file_info$table_name)
+      
       # Import to database
       import_success <- import_csv_to_duckdb(
         csv_path, 
-        file_info$table_name, 
+        clean_table_name, 
         db_connection,
         replace_existing = TRUE,
         verbose = verbose
@@ -451,10 +454,10 @@ batch_download_ipeds_files <- function(file_list, download_dir = file.path("data
       results$import_success[i] <- import_success
       
       if (import_success) {
-        # Get row count
+        # Get row count using clean table name
         row_count <- DBI::dbGetQuery(
           db_connection,
-          paste("SELECT COUNT(*) as n FROM", file_info$table_name)
+          paste("SELECT COUNT(*) as n FROM", clean_table_name)
         )$n
         results$row_count[i] <- row_count
       }
@@ -544,8 +547,10 @@ update_ipeds_database_year <- function(year, components = NULL,
   # Check which tables already exist (if not forcing redownload)
   if (!force_redownload) {
     existing_tables <- DBI::dbListTables(ensure_connection())
+    # Clean table names for comparison (remove .zip extension)
+    clean_table_names <- gsub("\\.zip$", "", available_files$table_name)
     existing_files <- available_files[
-      available_files$table_name %in% existing_tables,
+      clean_table_names %in% existing_tables,
     ]
     
     if (nrow(existing_files) > 0 && verbose) {

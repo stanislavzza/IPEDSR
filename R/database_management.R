@@ -23,6 +23,20 @@ get_ipeds_db_path <- function() {
   file.path(data_dir, .IPEDS_DB_NAME)
 }
 
+#' Get persistent downloads directory path
+#' @description Gets the path to the persistent downloads directory (same location as database)
+#' @return Path to downloads directory
+#' @export
+get_ipeds_downloads_path <- function() {
+  # Use same data directory as database
+  data_dir <- rappdirs::user_data_dir("IPEDSR", "FurmanIR")
+  downloads_dir <- file.path(data_dir, "downloads")
+  if (!dir.exists(downloads_dir)) {
+    dir.create(downloads_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  return(downloads_dir)
+}
+
 #' Check if IPEDS database exists and is valid
 #' @description Checks if the database file exists and can be opened
 #' @return Logical indicating if database is ready to use

@@ -4,7 +4,10 @@
 \alias{ensure_connection}
 \title{Ensure database connection}
 \usage{
-ensure_connection()
+ensure_connection(read_only = FALSE)
+}
+\arguments{
+\item{read_only}{Whether to open in read-only mode (default: FALSE for data import compatibility)}
 }
 \value{
 DBI connection object
