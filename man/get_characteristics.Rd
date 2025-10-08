@@ -4,11 +4,9 @@
 \alias{get_characteristics}
 \title{Get institutional characteristics for a single year}
 \usage{
-get_characteristics(idbc, year = NULL, UNITIDs = NULL, labels = TRUE)
+get_characteristics(year = NULL, UNITIDs = NULL, labels = TRUE)
 }
 \arguments{
-\item{idbc}{A database connector}
-
 \item{year}{The year to get, or NULL (default) for the most recent year}
 
 \item{UNITIDs}{optional array of UNITIDs to filter to}
@@ -23,7 +21,5 @@ a dataframe with institutional characteristics
 Get institutional characteristics for a single year
 }
 \details{
-Apparently these tables include 'blob' columns that won't allow downloading
-of the full thing. See https://github.com/r-dbi/odbc/issues/309.
-So we have to select around those.
+Automatically manages database connection and setup.
 }

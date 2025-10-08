@@ -4,11 +4,9 @@
 \alias{get_ipeds_faculty_salaries}
 \title{Faculty salaries}
 \usage{
-get_ipeds_faculty_salaries(idbc, UNITIDs = NULL, years = NULL)
+get_ipeds_faculty_salaries(UNITIDs = NULL, years = NULL)
 }
 \arguments{
-\item{idbc}{A database connector}
-
 \item{UNITIDs}{an array of UNITIDs}
 
 \item{years}{an array of years to pull}

@@ -1,12 +1,33 @@
 Package: IPEDSR
 Type: Package
-Title: Interface to the IPEDS databased
-Version: 0.1.0
+Title: Interface to the IPEDS Database
+Version: 0.2.0
 Author: Furman IR
 Maintainer: David Eubanks <david.eubanks@furman.edu>
-Description: Functions to pull data from the IPEDS database.
-License: NA
+Description: Functions to access and analyze IPEDS (Integrated Postsecondary Education Data System) data. 
+    Provides easy-to-use functions for retrieving institutional characteristics, financial data, 
+    enrollment statistics, and other higher education metrics. The package automatically manages 
+    database setup and updates.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-Depends: tidyverse
+Imports: 
+    DBI,
+    dplyr,
+    duckdb,
+    httr,
+    magrittr,
+    purrr,
+    rappdirs,
+    rlang,
+    stringr,
+    tibble,
+    tidyr,
+    tools,
+    utils
+Suggests:
+    testthat,
+    knitr,
+    rmarkdown
 RoxygenNote: 7.3.3
+VignetteBuilder: knitr

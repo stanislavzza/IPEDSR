@@ -1,19 +1,18 @@
 #' Get completions by school and CIP
-#' @param idbc database connector
 #' @param years The years of data to retrieve; the table name minus one. Years before 2007 are invalid.
-#' @param ids if NULL, everything, otherwise use the array of UNITIDs
+#' @param UNITIDs if NULL, everything, otherwise use the array of UNITIDs
 #' @param awlevel Award level, defaults to "05" for Bachelors
 #' @return a dataframe with institutional characteristics, year, and graduates by CIP
 #' @details The CIP code is 2-digit for economy of results
 #' @export
-get_ipeds_completions <- function(idbc, years, UNITIDs = NULL, awlevel = "05"){
+get_ipeds_completions <- function(years, UNITIDs = NULL, awlevel = "05"){
   # get grads
 
-  grads <- get_cips(idbc, UNITIDs, years) %>%
-    filter(MAJORNUM == 1) %>%
-    inner_join(get_cipcodes(idbc, 2)) %>%
-    group_by(Year, UNITID, CIPCODE, Subject) %>%
-    summarize(Graduates = sum(N))
+  grads <- get_cips(UNITIDs, years) %>%
+    dplyr::filter(MAJORNUM == 1) %>%
+    dplyr::inner_join(get_cipcodes(digits = 2), by = "CIPCODE") %>%
+    dplyr::group_by(Year, UNITID, CIPCODE, Subject) %>%
+    dplyr::summarize(Graduates = sum(N), .groups = "drop")
 
   return(grads)
 }
@@ -28,15 +27,17 @@ get_ipeds_completions <- function(idbc, years, UNITIDs = NULL, awlevel = "05"){
 #' all reported at the same time, which is six years after entry. The four year rate
 #' means four or less years, but five and six mean exactly those many years.
 #' @export
-get_grad_rates <- function(idbc, UNITIDs = NULL){
+get_grad_rates <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
+  
   nan_to_na <- function(x){
-    if_else(is.nan(x), NA_real_, x)
+    dplyr::if_else(is.nan(x), NA_real_, x)
   }
 
   # expects ef<Year>d.csv
 
   # find all the tables
-  tnames <- my_dbListTables(idbc, search_string = "^GR20\\d\\d$")
+  tnames <- my_dbListTables(search_string = "^GR20\\d\\d$")
 
   out <- data.frame()
 
@@ -46,8 +47,8 @@ get_grad_rates <- function(idbc, UNITIDs = NULL){
     year <- as.integer(substr(tname, 3,6))
 
     # filter to the data we want
-    df <- tbl(idbc,tname) %>%
-      filter(GRTYPE %in% c(2, # cohort size
+    df <- dplyr::tbl(idbc,tname) %>%
+      dplyr::filter(GRTYPE %in% c(2, # cohort size
                            3, # grads within 150%
                            8, # same as 2 -- cohort size
                            13, # four year grads
@@ -58,25 +59,25 @@ get_grad_rates <- function(idbc, UNITIDs = NULL){
 
     # restrict to a list of IDs?
     if (!is.null(UNITIDs)) {
-      df <- df %>% filter(UNITID %in% !!UNITIDs)
+      df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
     }
 
     # The cohort column name depends on the year
     if(year < 2008){
       df <- df %>%
-        select(UNITID, GRTYPE, N = GRRACE24 )
+        dplyr::select(UNITID, GRTYPE, N = GRRACE24 )
     } else {
       df <- df %>%
-        select(UNITID, GRTYPE, N = GRTOTLT)
+        dplyr::select(UNITID, GRTYPE, N = GRTOTLT)
     }
 
     # get the data and do calculations
 
     df <- df %>%
-      collect() %>%
+      dplyr::collect() %>%
       ######### Have data ##################
-    spread(GRTYPE, N, sep = "_") %>%
-      mutate(Grad_rate = GRTYPE_3 / GRTYPE_2,
+    tidyr::spread(GRTYPE, N, sep = "_") %>%
+      dplyr::mutate(Grad_rate = GRTYPE_3 / GRTYPE_2,
              Grad_rate_4yr = GRTYPE_13 / GRTYPE_8,
              Grad_rate_5yr = GRTYPE_14 / GRTYPE_8,
              Grad_rate_6yr = GRTYPE_15 / GRTYPE_8,
@@ -85,7 +86,7 @@ get_grad_rates <- function(idbc, UNITIDs = NULL){
                else NA_real_},
              Year = year,
              Cohort = year - 6) %>%
-      select(UNITID, Year, Cohort,
+      dplyr::select(UNITID, Year, Cohort,
              Cohort_size = GRTYPE_2,
              Grad_rate, # cumulative 6-year
              #Cohort_size_4yr = GRTYPE_2, # for backwards compatibility
@@ -109,13 +110,15 @@ get_grad_rates <- function(idbc, UNITIDs = NULL){
 #' and numbers of grad at 100 and 150%. Four and six year rates are generated.
 #' Only returns data after 2007. Rates are as of August 31 of the identified year.
 #' @export
-get_grad_demo_rates <- function(idbc, UNITIDs = NULL){
+get_grad_demo_rates <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
+  
   nan_to_na <- function(x){
-    if_else(is.nan(x), NA_real_, x)
+    dplyr::if_else(is.nan(x), NA_real_, x)
   }
 
   # find all the tables
-  tnames <- my_dbListTables(idbc, search_string = "^GR20\\d\\d$")
+  tnames <- my_dbListTables(search_string = "^GR20\\d\\d$")
 
   out <- data.frame()
 
@@ -126,7 +129,7 @@ get_grad_demo_rates <- function(idbc, UNITIDs = NULL){
 
     if(year < 2008) next # format changed
 
-    df <- tbl(idbc,tname) %>%
+    df <- dplyr::tbl(idbc,tname) %>%
       filter(GRTYPE %in% c(2,3, 13)) %>% # 2 is cohort size, 3 is grads in 150%, 13 is 100%
       select(UNITID,
              GRTYPE,
@@ -172,13 +175,15 @@ get_grad_demo_rates <- function(idbc, UNITIDs = NULL){
 #' that identify the demographic (total means everyone). Only returns data after
 #' 2015. Rates are as of August 31 of the identified year.
 #' @export
-get_grad_pell_rates <- function(idbc, UNITIDs = NULL){
+get_grad_pell_rates <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
+  
   nan_to_na <- function(x){
-    if_else(is.nan(x), NA_real_, x)
+    dplyr::if_else(is.nan(x), NA_real_, x)
   }
 
   # find all the tables
-  tnames <- my_dbListTables(idbc, search_string = "^GR20\\d\\d_PELL_SSL$")
+  tnames <- my_dbListTables(search_string = "^GR20\\d\\d_PELL_SSL$")
 
   out <- data.frame()
 

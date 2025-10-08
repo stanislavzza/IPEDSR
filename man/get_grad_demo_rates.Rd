@@ -4,12 +4,12 @@
 \alias{get_grad_demo_rates}
 \title{Get demographic grad rates}
 \usage{
-get_grad_demo_rates(idbc, UNITIDs = NULL)
+get_grad_demo_rates(UNITIDs = NULL)
 }
 \arguments{
-\item{idbc}{Database connector}
-
 \item{UNITIDs}{Array of identifiers}
+
+\item{idbc}{Database connector}
 }
 \value{
 Long dataframe with year, unitid, demographic categories, cohort sizes,

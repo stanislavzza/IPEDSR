@@ -4,11 +4,9 @@
 \alias{get_ipeds_table}
 \title{Retrieve IPEDS data with columns renamed}
 \usage{
-get_ipeds_table(idbc, table_name, year2, UNITIDs = NULL)
+get_ipeds_table(table_name, year2, UNITIDs = NULL)
 }
 \arguments{
-\item{idbc}{Database connection}
-
 \item{table_name}{The complete name of the table including year}
 
 \item{year2}{A two-character year, as in 20XX, so 2020 is "20" and 2021 is "21"}

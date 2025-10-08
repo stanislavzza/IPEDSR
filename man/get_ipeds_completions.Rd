@@ -4,16 +4,14 @@
 \alias{get_ipeds_completions}
 \title{Get completions by school and CIP}
 \usage{
-get_ipeds_completions(idbc, years, UNITIDs = NULL, awlevel = "05")
+get_ipeds_completions(years, UNITIDs = NULL, awlevel = "05")
 }
 \arguments{
-\item{idbc}{database connector}
-
 \item{years}{The years of data to retrieve; the table name minus one. Years before 2007 are invalid.}
 
-\item{awlevel}{Award level, defaults to "05" for Bachelors}
+\item{UNITIDs}{if NULL, everything, otherwise use the array of UNITIDs}
 
-\item{ids}{if NULL, everything, otherwise use the array of UNITIDs}
+\item{awlevel}{Award level, defaults to "05" for Bachelors}
 }
 \value{
 a dataframe with institutional characteristics, year, and graduates by CIP

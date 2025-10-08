@@ -1,25 +1,24 @@
 #' Get cohort retention and graduation history
-#' @param idbc database connector
 #' @param UNITIDs an array of IDs or NULL for everything (default)
 #' @return Cohort year and size, and rates and numbers of returning and
 #' graduating students.
 #' @details This report omits Year because it's keyed on Chort.
 #' The columns Yr1 through Yr6 estimate enrollment.
 #' @export
-get_cohort_stats <- function(idbc, UNITIDs = NULL){
+get_cohort_stats <- function(UNITIDs = NULL){
 
-  ret  <- get_retention(idbc, UNITIDs) %>%
-          select(-Year) %>%
-          mutate(Retention = Retention / 100)
+  ret  <- get_retention(UNITIDs) %>%
+          dplyr::select(-Year) %>%
+          dplyr::mutate(Retention = Retention / 100)
 
-  grad <- get_grad_rates(idbc, UNITIDs) %>%
-          select(-Year, -Cohort_size) %>%
-          replace_na(list(Still_enrolled = 0))
+  grad <- get_grad_rates(UNITIDs) %>%
+          dplyr::select(-Year, -Cohort_size) %>%
+          tidyr::replace_na(list(Still_enrolled = 0))
 
   ret %>%
-        left_join(grad) %>%
+        dplyr::left_join(grad) %>%
         # class counts
-        mutate( Yr1 = Cohort_size,
+        dplyr::mutate( Yr1 = Cohort_size,
                 Yr2 = round(Yr1 * Retention),
                 Yr4 = round(Yr1 * (Grad_rate + Still_enrolled)),
                 Yr5 = round(Yr4 - Grad_rate_4yr*Yr1),
@@ -65,10 +64,11 @@ get_cohort_stats <- function(idbc, UNITIDs = NULL){
 #' 52	= Part-time students, Graduate
 #' @return A dataframe with UNITID, Year, Total, Men, Women, White, Black, Hispanic, and NRAlien.
 #' @export
-ipeds_get_enrollment <- function(idbc, UNITIDs = NULL, StudentTypeCode = 1){
+ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
+  idbc <- ensure_connection()
 
   # student codes
-  student_codes <- tribble(
+  student_codes <- tibble::tribble(
     ~StudentTypeCode, ~StudentType,
     1	,"All students total",
     2	,"All students, Undergraduate total",
@@ -100,7 +100,7 @@ ipeds_get_enrollment <- function(idbc, UNITIDs = NULL, StudentTypeCode = 1){
 
   # find all the tables
   #tnames <- odbc::dbListTables(idbc, table_name = "ef%a")
-  tnames <- my_dbListTables(idbc, search_string = "^EF\\d{4}A$")
+  tnames <- my_dbListTables(search_string = "^EF\\d{4}A$")
 
   out <- data.frame()
 
@@ -112,9 +112,9 @@ ipeds_get_enrollment <- function(idbc, UNITIDs = NULL, StudentTypeCode = 1){
     # the varnames switched in 2008
     if(tname <= "EF2007A"){
 
-      tdf <- tbl(idbc, tname) %>%
-        filter( EFALEVEL %in% !!StudentTypeCode) %>%
-        select(UNITID,
+      tdf <- dplyr::tbl(idbc, tname) %>%
+        dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
+        dplyr::select(UNITID,
                StudentTypeCode = EFALEVEL,
                Total = EFRACE24,
                Men = EFRACE15,
@@ -178,10 +178,11 @@ ipeds_get_enrollment <- function(idbc, UNITIDs = NULL, StudentTypeCode = 1){
 #' @details The cohort  = year - 1 since the retention rate is reported a year
 #' later. A cohort column is included to make this clear.
 #' @export
-get_retention <- function(idbc, UNITIDs = NULL){
+get_retention <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
   # find all the tables
   # tnames <- odbc::dbListTables(idbc, table_name = "ef20__D")
-  tnames <- my_dbListTables(idbc, search_string = "^EF\\d{4}D$")
+  tnames <- my_dbListTables(search_string = "^EF\\d{4}D$")
 
   out <- data.frame()
 
@@ -236,14 +237,15 @@ get_retention <- function(idbc, UNITIDs = NULL){
 #' @param idbc database connector
 #' @param UNITIDs optional list of UNITIDs to filter to
 #' @export
-get_admit_funnel <- function(idbc, UNITIDs = NULL){
+get_admit_funnel <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
 
   # output data
   out <- data.frame()
 
   # find all the tables before 2014
   #tnames <- odbc::dbListTables(idbc, table_name = "ic____", table_type = "TABLE")
-  tnames <- my_dbListTables(idbc, search_string = "^IC\\d{4}$")
+  tnames <- my_dbListTables(search_string = "^IC\\d{4}$")
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -314,7 +316,7 @@ get_admit_funnel <- function(idbc, UNITIDs = NULL){
   # after 2014
   # find all the tables before 2014
   #tnames <- odbc::dbListTables(idbc, table_name = "adm____", table_type = "TABLE")
-  tnames <- my_dbListTables(idbc, search_string = "^ADM\\d{4}$")
+  tnames <- my_dbListTables(search_string = "^ADM\\d{4}$")
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -391,14 +393,15 @@ get_admit_funnel <- function(idbc, UNITIDs = NULL){
 #' @param UNITIDs Optional list of UNITIDs to filter to
 #' @export
 
-get_fa_info <- function(idbc, UNITIDs = NULL){
+get_fa_info <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
   # input should be a sfa file, eg.
   # df <- read_csv("data/IPEDS/2017/sfa1617.csv", guess_max = 5000) %>%
   # adds a given year to the df
 
   # find all the tables
   #tnames <- odbc::dbListTables(idbc, table_name = "sfa%")
-  tnames <- my_dbListTables(idbc, search_string = "^SFA\\d{4}")
+  tnames <- my_dbListTables(search_string = "^SFA\\d{4}")
 
   # leave out the sfav ones
   #tnames <- tnames[!str_detect(tnames,"SFAV")]

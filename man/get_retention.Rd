@@ -4,12 +4,12 @@
 \alias{get_retention}
 \title{Get cohort size and retention rates}
 \usage{
-get_retention(idbc, UNITIDs = NULL)
+get_retention(UNITIDs = NULL)
 }
 \arguments{
-\item{idbc}{database connector}
-
 \item{UNITIDs}{optional IDs to retrieve, or NULL for everything}
+
+\item{idbc}{database connector}
 }
 \value{
 a dataframe with UNITID, Year, Retention, CohortSize

@@ -1,12 +1,12 @@
 #' Get financials
-#' @param idbc Database connector
-#' @param UNTIDs vector of UNITIDs to retrieve
+#' @param UNITIDs vector of UNITIDs to retrieve
 #' @return Dataframe with endowment, revenue and other statistics
 #' @export
-get_finances <- function(idbc, UNITIDs = NULL){
+get_finances <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
 
   # find all the tables
-  tnames <- my_dbListTables(idbc, search_string = "^F\\d{4}_F2")
+  tnames <- my_dbListTables(search_string = "^F\\d{4}_F2")
 
   out <- data.frame()
 
@@ -17,8 +17,8 @@ get_finances <- function(idbc, UNITIDs = NULL){
 
 
     if(year < 2009){
-      df <- tbl(idbc,tname) %>%
-        select(UNITID,
+      df <- dplyr::tbl(idbc,tname) %>%
+        dplyr::select(UNITID,
                F2A05, # Total restricted net assets
                F2A05A, # Permanently restricted net assets included in total restricted net assets
                F2B01,  # total revenue
@@ -47,23 +47,23 @@ get_finances <- function(idbc, UNITIDs = NULL){
         )
 
       if (!is.null(UNITIDs)) {
-        df <- df %>% filter(UNITID %in% !!UNITIDs)
+        df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
       }
 
       df <- df %>%
-        collect() %>%
-        mutate( Year = year,
+        dplyr::collect() %>%
+        dplyr::mutate( Year = year,
                 Temporarily_restricted_net_assets = F2A05 - F2A05A,
                 Property_Plant_Equipment_net_depreciation = NA,
                 Debt_Property_Plant_Equipment = NA,
                 Net_total_revenues = F2B01 - F2B02,
                 Endowment = as.integer(Endowment)) %>%
-        select(-F2A05, -F2A05A, -F2B01, -F2B02)
+        dplyr::select(-F2A05, -F2A05A, -F2B01, -F2B02)
 
     } else {
 
-      df <- tbl(idbc,tname) %>%
-        select(UNITID,
+      df <- dplyr::tbl(idbc,tname) %>%
+        dplyr::select(UNITID,
                Total_unrestricted_net_assets = F2A04,
                Temporarily_restricted_net_assets = F2A05B,
                Property_Plant_Equipment_net_depreciation = F2A19,
@@ -90,14 +90,14 @@ get_finances <- function(idbc, UNITIDs = NULL){
                # institutional aid, funded and unfunded
                Funded_aid         = F2C05,
                Inst_aid           = F2C06) %>%
-        mutate(Year = year,
+        dplyr::mutate(Year = year,
                Endowment = as.numeric(Endowment))
 
       if (!is.null(UNITIDs)) {
-        df <- df %>% filter(UNITID %in% !!UNITIDs)
+        df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
       }
 
-      df <- df %>% collect()
+      df <- df %>% dplyr::collect()
     }
     out <- rbind(out, df)
 
@@ -106,14 +106,14 @@ get_finances <- function(idbc, UNITIDs = NULL){
 }
 
 #' Get IPEDS tuition
-#' @param idbc Database connector
 #' @param UNITIDs IPEDS school IDs. If NULL, gets everything
 #' @return A dataframe with UNITID, Year, Tuition, Fees, RoomBoard for undergrad
 #' @export
-get_tuition <- function(idbc, UNITIDs = NULL){
+get_tuition <- function(UNITIDs = NULL){
+  idbc <- ensure_connection()
 
   # find all the tables
-  tnames <- my_dbListTables(idbc, search_string = "^IC\\d{4}_AY$")
+  tnames <- my_dbListTables(search_string = "^IC\\d{4}_AY$")
 
   out <- data.frame()
 
@@ -126,8 +126,8 @@ get_tuition <- function(idbc, UNITIDs = NULL){
 
     # some of the column names are lowercase, sigh
     df <-  try(
-      tbl(idbc, tname)  %>%
-        select(UNITID,
+      dplyr::tbl(idbc, tname)  %>%
+        dplyr::select(UNITID,
                Tuition = TUITION1,
                Fees    = FEE1,
                RoomBoard = chg5ay2), TRUE
@@ -136,8 +136,8 @@ get_tuition <- function(idbc, UNITIDs = NULL){
     if(inherits(df, "try-error")) {
 
       df <-  try(
-        tbl(idbc, tname)  %>%
-          select(UNITID,
+        dplyr::tbl(idbc, tname)  %>%
+          dplyr::select(UNITID,
                  Tuition = TUITION1,
                  Fees    = FEE1,
                  RoomBoard = CHG5AY2), TRUE
@@ -145,12 +145,12 @@ get_tuition <- function(idbc, UNITIDs = NULL){
     }
 
     if (!is.null(UNITIDs)) {
-      df <- df %>% filter(UNITID %in% !!UNITIDs)
+      df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
     }
 
-    df <- df %>% collect %>%
-      mutate(Year = year) %>%
-      mutate(Tuition = as.integer(Tuition),
+    df <- df %>% dplyr::collect() %>%
+      dplyr::mutate(Year = year) %>%
+      dplyr::mutate(Tuition = as.integer(Tuition),
              Fees = as.integer(Fees),
              RoomBoard = as.integer(RoomBoard),
              TotalCost = Tuition + Fees + RoomBoard)

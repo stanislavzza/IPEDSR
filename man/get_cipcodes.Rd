@@ -4,12 +4,12 @@
 \alias{get_cipcodes}
 \title{Get CIP Codes}
 \usage{
-get_cipcodes(idbc, digits = NULL)
+get_cipcodes(digits = NULL)
 }
 \arguments{
-\item{idbc}{Database connector}
-
 \item{digits}{optional number of digits to truncate to, or NULL for no truncation}
+
+\item{idbc}{Database connector}
 }
 \value{
 A data frame with CIPCODE, Subject

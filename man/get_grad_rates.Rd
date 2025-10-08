@@ -4,12 +4,12 @@
 \alias{get_grad_rates}
 \title{Get grad rates}
 \usage{
-get_grad_rates(idbc, UNITIDs = NULL)
+get_grad_rates(UNITIDs = NULL)
 }
 \arguments{
-\item{idbc}{Database connector}
-
 \item{UNITIDs}{Array of identifiers, or NULL for all schools}
+
+\item{idbc}{Database connector}
 }
 \value{
 Dataframe with year and cohort and cohort size, unitid, 6 year cumulative grad rate,

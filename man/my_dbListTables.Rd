@@ -4,11 +4,9 @@
 \alias{my_dbListTables}
 \title{Find matching tables}
 \usage{
-my_dbListTables(idbc, search_string)
+my_dbListTables(search_string)
 }
 \arguments{
-\item{idbc}{database connection}
-
 \item{search_string}{A string to search for in the table names}
 }
 \value{

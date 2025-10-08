@@ -4,11 +4,9 @@
 \alias{get_cohort_stats}
 \title{Get cohort retention and graduation history}
 \usage{
-get_cohort_stats(idbc, UNITIDs = NULL)
+get_cohort_stats(UNITIDs = NULL)
 }
 \arguments{
-\item{idbc}{database connector}
-
 \item{UNITIDs}{an array of IDs or NULL for everything (default)}
 }
 \value{

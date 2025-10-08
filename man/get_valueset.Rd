@@ -4,11 +4,9 @@
 \alias{get_valueset}
 \title{Get valueset}
 \usage{
-get_valueset(idbc, my_table)
+get_valueset(my_table)
 }
 \arguments{
-\item{idbc}{database connector to IPEDS db}
-
 \item{my_table}{The IPEDS table being accessed}
 }
 \description{

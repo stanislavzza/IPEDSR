@@ -4,14 +4,14 @@
 \alias{get_cip2_counts}
 \title{CIP distributions}
 \usage{
-get_cip2_counts(idbc, awlevel = "05", UNITIDs = NULL, first_only = FALSE)
+get_cip2_counts(awlevel = "05", UNITIDs = NULL, first_only = FALSE)
 }
 \arguments{
-\item{idbc}{Database connector for the IPEDS database}
-
 \item{UNITIDs}{optional array of UNITIDs to return, or NULL for everything}
 
 \item{first_only}{When TRUE only counts first majors. Defaults to FALSE.}
+
+\item{idbc}{Database connector for the IPEDS database}
 
 \item{level}{The code for the degree level}
 }

@@ -4,11 +4,9 @@
 \alias{get_employees}
 \title{Get employees}
 \usage{
-get_employees(idbc, UNITIDs = 218070)
+get_employees(UNITIDs = 218070)
 }
 \arguments{
-\item{idbc}{A database connector}
-
 \item{UNITIDs}{an array of UNITIDs, defaulting to Furman}
 }
 \value{

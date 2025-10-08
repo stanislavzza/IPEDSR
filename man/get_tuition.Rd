@@ -4,11 +4,9 @@
 \alias{get_tuition}
 \title{Get IPEDS tuition}
 \usage{
-get_tuition(idbc, UNITIDs = NULL)
+get_tuition(UNITIDs = NULL)
 }
 \arguments{
-\item{idbc}{Database connector}
-
 \item{UNITIDs}{IPEDS school IDs. If NULL, gets everything}
 }
 \value{

@@ -4,11 +4,9 @@
 \alias{get_labels}
 \title{Convert to friendly names}
 \usage{
-get_labels(idbc, my_table, df, verbose = FALSE)
+get_labels(my_table, df, verbose = FALSE)
 }
 \arguments{
-\item{idbc}{database connector to IPEDS db}
-
 \item{my_table}{The IPEDS table being accessed}
 
 \item{df}{Data from the table given}

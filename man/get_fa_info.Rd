@@ -4,12 +4,12 @@
 \alias{get_fa_info}
 \title{Get financial aid}
 \usage{
-get_fa_info(idbc, UNITIDs = NULL)
+get_fa_info(UNITIDs = NULL)
 }
 \arguments{
-\item{idbc}{IPEDS database connection}
-
 \item{UNITIDs}{Optional list of UNITIDs to filter to}
+
+\item{idbc}{IPEDS database connection}
 }
 \description{
 Get financial aid

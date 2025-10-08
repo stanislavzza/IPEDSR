@@ -4,11 +4,9 @@
 \alias{get_cips}
 \title{Get CIPS}
 \usage{
-get_cips(idbc, UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "05")
+get_cips(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "05")
 }
 \arguments{
-\item{idbc}{Database connector}
-
 \item{UNITIDs}{UNITIDs, or NULL for everything}
 
 \item{years}{The years of data to retrieve; the table name minus one. Years before 2007 are invalid.}
@@ -17,6 +15,8 @@ get_cips(idbc, UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "05")
 code "99" is all degrees, which is filtered out if you leave cip_codes NULL.}
 
 \item{awlevel}{Award level, defaults to "05" for Bachelors}
+
+\item{idbc}{Database connector}
 }
 \value{
 A data frame with UNITID, CIPCODE, MAJORNUM, N (the count of completions), and Year

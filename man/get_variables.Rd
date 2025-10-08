@@ -4,11 +4,9 @@
 \alias{get_variables}
 \title{Get IPEDS variable names}
 \usage{
-get_variables(idbc, my_table)
+get_variables(my_table)
 }
 \arguments{
-\item{idbc}{database connector to IPEDS db}
-
 \item{my_table}{The IPEDS table being accessed}
 }
 \description{
