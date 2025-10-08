@@ -31,5 +31,6 @@ utils::globalVariables(c(
   "EFTOTLM", "EFTOTLW", "APPLCNM", "APPLCNW", "ADMSSNM", "ADMSSNW", "ENRLFTM",
   "ENRLFTW", "SATVR25", "SATVR75", "SATMT25", "SATMT75", "ACTCM25", "ACTCM75",
   "ACTEN25", "ACTEN75", "ACTMT25", "ACTMT75", "SCFA2", "SCFA1N", "FGRNT_P",
-  "IGRNT_N", "IGRNT_A", "IGRNT_P", "N_inst_aid", "Avg_inst_aid"
+  "IGRNT_N", "IGRNT_A", "IGRNT_P", "N_inst_aid", "Avg_inst_aid", "component",
+  "year"
 ))
