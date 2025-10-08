@@ -2,6 +2,45 @@
 #' 
 #' User-friendly functions for managing IPEDS data updates and validation
 
+#' Get actual years available in the database
+#' @return Vector of years found in database table names
+#' @export
+get_database_years <- function() {
+  tryCatch({
+    # Use existing connection infrastructure
+    db_connection <- ensure_connection()
+    
+    # Get all table names
+    tables <- DBI::dbListTables(db_connection)
+    
+    # Extract years from table names (simpler approach)
+    years <- character()
+    for (table in tables) {
+      # Look for 4-digit numbers that could be years
+      year_matches <- regmatches(table, gregexpr("[0-9]{4}", table))[[1]]
+      if (length(year_matches) > 0) {
+        # Filter to reasonable year range
+        for (year_str in year_matches) {
+          year_num <- as.numeric(year_str)
+          if (!is.na(year_num) && year_num >= 2000 && year_num <= 2030) {
+            years <- c(years, year_str)
+          }
+        }
+      }
+    }
+    
+    # Convert to numeric, remove duplicates, sort
+    years <- as.numeric(unique(years))
+    years <- sort(years)
+    
+    return(years)
+    
+  }, error = function(e) {
+    warning("Error getting database years: ", e$message)
+    return(integer(0))
+  })
+}
+
 #' Main interface for IPEDS data management
 #' @param action Action to perform: "check_updates", "download", "validate", "status", "help"
 #' @param year Specific year to work with (optional)
@@ -282,11 +321,30 @@ ui_show_status <- function(interactive = TRUE) {
     cat("  Metadata tables:", length(metadata_tables), "\n")
     cat("  Total tables:", length(all_tables), "\n\n")
     
+    # Get ACTUAL years from database
+    actual_years <- get_database_years()
+    if (length(actual_years) > 0) {
+      cat("Data Years Available:\n")
+      cat("  Years:", paste(actual_years, collapse = ", "), "\n")
+      cat("  Range:", min(actual_years), "-", max(actual_years), "\n")
+      cat("  Total years:", length(actual_years), "\n\n")
+      
+      # Count tables per year
+      cat("Tables per Year:\n")
+      for (year in tail(actual_years, 5)) {  # Show last 5 years
+        year_tables <- ipeds_tables[grepl(as.character(year), ipeds_tables)]
+        cat("  ", year, ": ", length(year_tables), " tables\n")
+      }
+      cat("\n")
+    } else {
+      cat("⚠️  Could not determine available data years\n\n")
+    }
+    
     # Get version information if available
     if ("ipeds_metadata" %in% all_tables) {
       version_info <- get_version_history()
       if (nrow(version_info) > 0) {
-        cat("Version Information:\n")
+        cat("Version Tracking:\n")
         
         # Show latest updates by year
         years <- unique(version_info$data_year)
@@ -302,20 +360,28 @@ ui_show_status <- function(interactive = TRUE) {
         }
         cat("\n")
       }
+    } else {
+      cat("Version Tracking: Not initialized\n\n")
     }
     
-    # Database file info
-    db_connection <- ensure_connection()
-    # Get database file path (DuckDB file path)
-    db_path <- db_connection@dbname
-    if (file.exists(db_path)) {
-      file_info <- file.info(db_path)
-      file_size_mb <- round(file_info$size / 1024 / 1024, 1)
-      cat("Database File:\n")
-      cat("  Path:", db_path, "\n")
-      cat("  Size:", file_size_mb, "MB\n")
-      cat("  Modified:", format(file_info$mtime, "%Y-%m-%d %H:%M:%S"), "\n\n")
-    }
+    # Database file info - use safer approach
+    tryCatch({
+      library(rappdirs)
+      db_dir <- user_data_dir("IPEDSR")
+      db_files <- list.files(db_dir, pattern = "\\.duckdb$", full.names = TRUE)
+      
+      if (length(db_files) > 0) {
+        db_path <- db_files[1]
+        file_info <- file.info(db_path)
+        file_size_mb <- round(file_info$size / 1024 / 1024, 1)
+        cat("Database File:\n")
+        cat("  Path:", db_path, "\n")
+        cat("  Size:", file_size_mb, "MB\n")
+        cat("  Modified:", format(file_info$mtime, "%Y-%m-%d %H:%M:%S"), "\n\n")
+      }
+    }, error = function(e) {
+      cat("Database file info not available\n\n")
+    })
     
     # Quick data quality check
     if (interactive) {

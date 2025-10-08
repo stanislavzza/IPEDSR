@@ -4,14 +4,26 @@
 
 #' Download a single IPEDS CSV file
 #' @param file_info Single row from file listing with download information
-#' @param download_dir Directory to store downloaded files
-#' @param verbose Whether to print progress
-#' @return Path to downloaded file or NULL if failed
+#' @param download_dir Directory to store downloaded files (default: data/downloads)
+#' @param force_redownload Whether to redownload even if file exists
+#' @param verbose Whether to print progress messages
+#' @return Path to downloaded CSV file or NULL if failed
 #' @export
-download_ipeds_csv <- function(file_info, download_dir = tempdir(), verbose = TRUE) {
+download_ipeds_csv <- function(file_info, download_dir = file.path("data", "downloads"), 
+                              force_redownload = FALSE, verbose = TRUE) {
   
-  if (is.null(file_info$csv_link) || file_info$csv_link == "") {
-    warning("No CSV download link available for ", file_info$table_name)
+  # Check if we have a CSV link first, then fall back to ZIP
+  use_zip <- FALSE
+  download_url <- NULL
+  
+  if (!is.null(file_info$csv_link) && file_info$csv_link != "") {
+    download_url <- file_info$csv_link
+    use_zip <- FALSE
+  } else if (!is.null(file_info$zip_link) && file_info$zip_link != "") {
+    download_url <- file_info$zip_link
+    use_zip <- TRUE
+  } else {
+    warning("No CSV or ZIP download link available for ", file_info$table_name)
     return(NULL)
   }
   
@@ -21,24 +33,50 @@ download_ipeds_csv <- function(file_info, download_dir = tempdir(), verbose = TR
   }
   
   # Construct local filename
-  filename <- paste0(file_info$table_name, ".csv")
-  local_path <- file.path(download_dir, filename)
+  if (use_zip) {
+    temp_filename <- paste0(file_info$table_name, ".zip")
+    temp_path <- file.path(download_dir, temp_filename)
+    final_filename <- paste0(file_info$table_name, ".csv")
+    final_path <- file.path(download_dir, final_filename)
+  } else {
+    temp_filename <- paste0(file_info$table_name, ".csv")
+    temp_path <- file.path(download_dir, temp_filename)
+    final_path <- temp_path
+  }
+  
+  # Check if final CSV file already exists (skip download unless forced)
+  if (file.exists(final_path) && !force_redownload) {
+    if (verbose) {
+      message("File already exists, skipping download: ", final_path)
+    }
+    return(final_path)
+  }
   
   if (verbose) {
-    message("Downloading ", file_info$table_name, " from IPEDS...")
+    if (use_zip) {
+      message("Downloading ", file_info$table_name, " ZIP file from IPEDS...")
+    } else {
+      message("Downloading ", file_info$table_name, " CSV from IPEDS...")
+    }
   }
   
   tryCatch({
     # Make sure the URL is absolute
-    download_url <- file_info$csv_link
     if (!grepl("^https?://", download_url)) {
-      download_url <- paste0("https://nces.ed.gov", download_url)
+      # For relative URLs, construct proper base path
+      if (grepl("^data/", download_url)) {
+        # IPEDS data files are in the datacenter/data directory
+        download_url <- paste0("https://nces.ed.gov/ipeds/datacenter/", download_url)
+      } else {
+        # General case - add base domain
+        download_url <- paste0("https://nces.ed.gov", download_url)
+      }
     }
     
     # Download the file
     response <- httr::GET(
       download_url,
-      httr::write_disk(local_path, overwrite = TRUE),
+      httr::write_disk(temp_path, overwrite = TRUE),
       httr::progress()
     )
     
@@ -48,8 +86,62 @@ download_ipeds_csv <- function(file_info, download_dir = tempdir(), verbose = TR
       return(NULL)
     }
     
+    # If we downloaded a ZIP file, extract the CSV
+    if (use_zip) {
+      if (verbose) {
+        message("Extracting CSV from ZIP file...")
+      }
+      
+      # Extract ZIP file
+      tryCatch({
+        # List contents of ZIP file
+        zip_contents <- utils::unzip(temp_path, list = TRUE)
+        
+        if (nrow(zip_contents) == 0) {
+          warning("ZIP file is empty: ", temp_path)
+          return(NULL)
+        }
+        
+        # Look for a CSV file in the ZIP
+        csv_files <- zip_contents$Name[grepl("\\.csv$", zip_contents$Name, ignore.case = TRUE)]
+        
+        if (length(csv_files) == 0) {
+          warning("No CSV file found in ZIP: ", temp_path)
+          return(NULL)
+        }
+        
+        # Use the first CSV file found (typically there's only one)
+        csv_file <- csv_files[1]
+        
+        # Extract the CSV file
+        utils::unzip(temp_path, files = csv_file, exdir = download_dir, overwrite = TRUE)
+        
+        # Move the extracted file to our expected name if needed
+        extracted_path <- file.path(download_dir, csv_file)
+        if (extracted_path != final_path) {
+          file.rename(extracted_path, final_path)
+        }
+        
+        # Clean up ZIP file
+        if (file.exists(temp_path)) {
+          file.remove(temp_path)
+        }
+        
+        # Update path for validation
+        validation_path <- final_path
+        
+      }, error = function(e) {
+        warning("Failed to extract ZIP file: ", e$message)
+        return(NULL)
+      })
+    } else {
+      # For direct CSV downloads, validation path is the temp path
+      validation_path <- temp_path
+      final_path <- temp_path
+    }
+    
     # Validate the downloaded file
-    validation <- validate_downloaded_file(local_path, file_info$table_name, verbose)
+    validation <- validate_downloaded_file(validation_path, file_info$table_name, verbose)
     
     if (!validation$valid) {
       warning("Downloaded file failed validation: ", 
@@ -63,7 +155,7 @@ download_ipeds_csv <- function(file_info, download_dir = tempdir(), verbose = TR
               validation$column_count, " columns)")
     }
     
-    return(local_path)
+    return(final_path)
     
   }, error = function(e) {
     warning("Error downloading ", file_info$table_name, ": ", e$message)
@@ -88,7 +180,7 @@ import_csv_to_duckdb <- function(csv_path, table_name, db_connection = NULL,
   }
   
   if (is.null(db_connection)) {
-    db_connection <- ensure_connection()
+    db_connection <- ensure_connection(read_only = FALSE)
   }
   
   if (verbose) {
@@ -155,25 +247,28 @@ import_csv_to_duckdb <- function(csv_path, table_name, db_connection = NULL,
 read_csv_with_types <- function(csv_path, table_name, verbose = FALSE) {
   
   tryCatch({
-    # First, read a sample to infer column types
-    sample_data <- utils::read.csv(csv_path, nrows = 1000, stringsAsFactors = FALSE, 
-                                  na.strings = c("", "NA", "NULL", "."))
+    # For IPEDS data, we need to be very flexible with column types
+    # since they can change between years. Read as character first,
+    # then convert what we can safely convert.
     
-    # Analyze column types
-    col_types <- infer_column_types(sample_data, table_name)
-    
-    # Read the full file with inferred types
     if (verbose) {
-      message("Reading CSV with inferred column types...")
+      message("Reading CSV with flexible column types for IPEDS data...")
     }
     
-    # For large files, we might want to use readr or vroom for better performance
+    # Read everything as character initially to handle IPEDS variability
     full_data <- utils::read.csv(
       csv_path, 
       stringsAsFactors = FALSE,
-      na.strings = c("", "NA", "NULL", "."),
-      colClasses = col_types
+      na.strings = c("", "NA", "NULL", ".", "-", "n/a"),
+      colClasses = "character"  # Read everything as character first
     )
+    
+    if (verbose) {
+      message("Read ", nrow(full_data), " rows and ", ncol(full_data), " columns")
+    }
+    
+    # Apply intelligent type conversion for known IPEDS patterns
+    full_data <- convert_ipeds_types_safely(full_data, table_name, verbose)
     
     # Clean up the data
     full_data <- clean_ipeds_data(full_data, table_name)
@@ -186,47 +281,50 @@ read_csv_with_types <- function(csv_path, table_name, verbose = FALSE) {
   })
 }
 
-#' Infer appropriate column types for IPEDS data
-#' @param sample_data Sample of the data
+#' Safely convert IPEDS data types without assumptions
+#' @param data Data frame with character columns
 #' @param table_name Table name for context
-#' @return Named vector of column types
-infer_column_types <- function(sample_data, table_name) {
+#' @param verbose Whether to print progress
+#' @return Data frame with converted types
+convert_ipeds_types_safely <- function(data, table_name, verbose = FALSE) {
   
-  col_types <- character(ncol(sample_data))
-  names(col_types) <- names(sample_data)
-  
-  for (col_name in names(sample_data)) {
-    col_data <- sample_data[[col_name]]
-    
-    # Remove NA values for type inference
-    non_na_data <- col_data[!is.na(col_data) & col_data != ""]
-    
-    if (length(non_na_data) == 0) {
-      col_types[col_name] <- "character"
-      next
-    }
-    
-    # UNITID should always be integer
-    if (col_name == "UNITID") {
-      col_types[col_name] <- "integer"
-      next
-    }
-    
-    # Check if all values are numeric
-    numeric_values <- suppressWarnings(as.numeric(non_na_data))
-    if (!any(is.na(numeric_values))) {
-      # Check if all are integers
-      if (all(numeric_values == as.integer(numeric_values), na.rm = TRUE)) {
-        col_types[col_name] <- "integer"
-      } else {
-        col_types[col_name] <- "numeric"
-      }
-    } else {
-      col_types[col_name] <- "character"
-    }
+  if (verbose) {
+    message("Converting IPEDS data types safely for ", table_name)
   }
   
-  return(col_types)
+  for (col_name in names(data)) {
+    col_data <- data[[col_name]]
+    
+    # Remove NA values and empty strings for type inference
+    non_empty_data <- col_data[!is.na(col_data) & col_data != "" & col_data != "-"]
+    
+    if (length(non_empty_data) == 0) {
+      next  # Keep as character if all values are empty/NA
+    }
+    
+    # UNITID should always be treated as integer if possible
+    if (col_name == "UNITID") {
+      numeric_values <- suppressWarnings(as.numeric(non_empty_data))
+      if (!any(is.na(numeric_values))) {
+        data[[col_name]] <- suppressWarnings(as.integer(data[[col_name]]))
+      }
+      next
+    }
+    
+    # Try to convert to numeric if ALL non-empty values are numeric
+    numeric_values <- suppressWarnings(as.numeric(non_empty_data))
+    if (!any(is.na(numeric_values))) {
+      # Check if all numeric values are integers
+      if (all(numeric_values == as.integer(numeric_values), na.rm = TRUE)) {
+        data[[col_name]] <- suppressWarnings(as.integer(data[[col_name]]))
+      } else {
+        data[[col_name]] <- suppressWarnings(as.numeric(data[[col_name]]))
+      }
+    }
+    # Otherwise keep as character - IPEDS has many mixed-type columns
+  }
+  
+  return(data)
 }
 
 #' Clean and standardize IPEDS data
@@ -265,15 +363,15 @@ clean_ipeds_data <- function(data, table_name) {
 
 #' Download and process multiple IPEDS files
 #' @param file_list Data frame with file information (from scraping functions)
-#' @param download_dir Directory for temporary downloads
+#' @param download_dir Directory for downloads (default: data/downloads)
 #' @param db_connection Database connection (optional)
 #' @param max_concurrent Maximum number of concurrent downloads
 #' @param verbose Whether to print progress
 #' @return Data frame with processing results
 #' @export
-batch_download_ipeds_files <- function(file_list, download_dir = tempdir(), 
+batch_download_ipeds_files <- function(file_list, download_dir = file.path("data", "downloads"), 
                                       db_connection = NULL, max_concurrent = 3,
-                                      verbose = TRUE) {
+                                      force_redownload = FALSE, verbose = TRUE) {
   
   if (nrow(file_list) == 0) {
     warning("No files to download")
@@ -281,7 +379,7 @@ batch_download_ipeds_files <- function(file_list, download_dir = tempdir(),
   }
   
   if (is.null(db_connection)) {
-    db_connection <- ensure_connection()
+    db_connection <- ensure_connection(read_only = FALSE)
   }
   
   if (verbose) {
@@ -309,8 +407,34 @@ batch_download_ipeds_files <- function(file_list, download_dir = tempdir(),
       message("Processing ", i, "/", nrow(file_list), ": ", file_info$table_name)
     }
     
+    # Check if table already exists in database
+    existing_tables <- DBI::dbListTables(db_connection)
+    table_exists <- file_info$table_name %in% existing_tables
+    
+    if (table_exists && !force_redownload) {
+      if (verbose) {
+        message("  ✓ Table ", file_info$table_name, " already exists, skipping download")
+      }
+      results$download_success[i] <- TRUE
+      results$import_success[i] <- TRUE
+      
+      # Get existing row count
+      row_count <- DBI::dbGetQuery(
+        db_connection,
+        paste("SELECT COUNT(*) as n FROM", file_info$table_name)
+      )$n
+      results$row_count[i] <- row_count
+      
+      next  # Skip to next file
+    }
+    
+    if (verbose && table_exists) {
+      message("  ⟳ Table exists but force_redownload=TRUE, re-downloading...")
+    }
+    
     # Download the file
-    csv_path <- download_ipeds_csv(file_info, download_dir, verbose = verbose)
+    csv_path <- download_ipeds_csv(file_info, download_dir, 
+                                  force_redownload = force_redownload, verbose = verbose)
     
     if (!is.null(csv_path)) {
       results$download_success[i] <- TRUE

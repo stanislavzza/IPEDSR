@@ -96,12 +96,19 @@ parse_file_row <- function(cells, cell_texts, year) {
   csv_links <- rvest::html_elements(cells, "a[href*='.csv']")
   csv_link <- if (length(csv_links) > 0) rvest::html_attr(csv_links[1], "href") else ""
   
+  # Look for ZIP download links (for newer years like 2024)
+  zip_links <- rvest::html_elements(cells, "a[href*='.zip']")
+  zip_link <- if (length(zip_links) > 0) rvest::html_attr(zip_links[1], "href") else ""
+  
   # Look for dictionary links
   dict_links <- rvest::html_elements(cells, "a[href*='Dictionary']")
   dictionary_link <- if (length(dict_links) > 0) rvest::html_attr(dict_links[1], "href") else ""
   
-  # Extract table name from CSV filename
+  # Extract table name from CSV filename first, then ZIP if no CSV
   table_name <- extract_table_name_from_link(csv_link)
+  if (table_name == "" && zip_link != "") {
+    table_name <- extract_table_name_from_link(zip_link)
+  }
   
   if (table_name == "" && length(cell_texts) >= 4) {
     # Try to extract from cell text if not found in link
@@ -116,6 +123,7 @@ parse_file_row <- function(cells, cell_texts, year) {
     description = description,
     table_name = table_name,
     csv_link = csv_link,
+    zip_link = zip_link,
     dictionary_link = dictionary_link,
     file_size = "", # Would need to be extracted from page or determined by download
     last_modified = as.character(Sys.Date()), # Placeholder
@@ -161,6 +169,7 @@ create_empty_files_dataframe <- function() {
     description = character(0),
     table_name = character(0),
     csv_link = character(0),
+    zip_link = character(0),
     dictionary_link = character(0),
     file_size = character(0),
     last_modified = character(0),

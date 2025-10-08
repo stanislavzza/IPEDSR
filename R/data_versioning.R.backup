@@ -76,6 +76,240 @@ initialize_version_tracking <- function(db_connection = NULL) {
 #' @param db_connection Database connection (will use write-capable connection)
 #' @return TRUE if successful
 #' @export
+initialize_baseline_tracking <- function(db_connection = NULL) {
+  
+  cat("Initializing version tracking with current database contents...\n\n")
+  
+  # Get write-capable connection
+  if (is.null(db_connection)) {
+    tryCatch({
+      # Disconnect any existing read-only connections
+      disconnect_ipeds()
+      Sys.sleep(0.5)  # Brief pause to allow cleanup
+      
+      # Get writable connection
+      library(rappdirs)
+      db_dir <- user_data_dir("IPEDSR")
+      db_path <- file.path(db_dir, "ipeds_2004-2023.duckdb")
+      
+      if (!file.exists(db_path)) {
+        stop("Database not found at: ", db_path)
+      }
+      
+      db_connection <- DBI::dbConnect(duckdb::duckdb(), db_path, read_only = FALSE)
+      on.exit(DBI::dbDisconnect(db_connection))
+      
+    }, error = function(e) {
+      stop("Could not establish write connection: ", e$message)
+    })
+  }
+  
+  # Initialize tracking tables
+  cat("1. Setting up version tracking tables...\n")
+  init_result <- initialize_version_tracking(db_connection)
+  
+  if (!init_result) {
+    stop("Failed to initialize version tracking tables")
+  }
+  cat("   ✅ Version tracking tables created successfully\n\n")
+  
+  # Get all existing tables
+  cat("2. Analyzing existing database tables...\n")
+  all_tables <- DBI::dbListTables(db_connection)
+  data_tables <- all_tables[!grepl("^ipeds_", all_tables)]  # Exclude metadata tables
+  
+  cat("   Found", length(data_tables), "data tables to catalog\n\n")
+  
+  # Process tables in batches
+  cat("3. Cataloging table metadata...\n")
+  batch_size <- 50
+  total_batches <- ceiling(length(data_tables) / batch_size)
+  cataloged_count <- 0
+  
+  for (batch_num in 1:total_batches) {
+    start_idx <- (batch_num - 1) * batch_size + 1
+    end_idx <- min(batch_num * batch_size, length(data_tables))
+    batch_tables <- data_tables[start_idx:end_idx]
+    
+    cat(sprintf("   Processing batch %d/%d (%d tables)...\n", 
+                batch_num, total_batches, length(batch_tables)))
+    
+    for (table_name in batch_tables) {
+      tryCatch({
+        # Extract year from table name
+        year_match <- regmatches(table_name, regexpr("[0-9]{4}", table_name))
+        data_year <- if (length(year_match) > 0) as.integer(year_match) else NA
+        
+        # Get table info
+        table_info <- DBI::dbGetQuery(db_connection, paste0("SELECT COUNT(*) as row_count FROM ", table_name))
+        row_count <- table_info$row_count[1]
+        
+        # Get column info  
+        column_info <- DBI::dbGetQuery(db_connection, paste0("PRAGMA table_info(", table_name, ")"))
+        column_count <- nrow(column_info)
+        
+        # Determine survey component from table name prefix
+        survey_component <- if (grepl("^adm", table_name)) {
+          "Admissions"
+        } else if (grepl("^al", table_name)) {
+          "Academic Libraries"
+        } else if (grepl("^c[0-9]", table_name)) {
+          "Completions"
+        } else if (grepl("^eap", table_name)) {
+          "Employees by Assigned Position"
+        } else if (grepl("^ef", table_name)) {
+          "Fall Enrollment"
+        } else if (grepl("^f[0-9]", table_name)) {
+          "Finance"
+        } else if (grepl("^gr", table_name)) {
+          "Graduation Rates"
+        } else if (grepl("^hd", table_name)) {
+          "Institutional Characteristics"
+        } else if (grepl("^ic", table_name)) {
+          "Institutional Characteristics"
+        } else if (grepl("^om", table_name)) {
+          "Outcome Measures"
+        } else if (grepl("^s", table_name)) {
+          "Student Financial Aid"
+        } else if (grepl("^sfav", table_name)) {
+          "Student Financial Aid"
+        } else {
+          "Unknown"
+        }
+        
+        # Generate description
+        description <- paste0("IPEDS ", survey_component, " data for ", 
+                             if (!is.na(data_year)) data_year else "unknown year")
+        
+        # Insert directly into metadata table
+        insert_sql <- "
+        INSERT OR REPLACE INTO ipeds_metadata 
+        (table_name, data_year, survey_component, description, source_url, 
+         download_date, file_size, row_count, column_count, checksum, version, status, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "
+        
+        DBI::dbExecute(db_connection, insert_sql, list(
+          table_name, data_year, survey_component, description, NA,
+          NA, NA, row_count, column_count, NA, "baseline", "existing",
+          "Cataloged from existing database during initialization"
+        ))
+        
+        cataloged_count <- cataloged_count + 1
+        
+      }, error = function(e) {
+        warning("Error processing table ", table_name, ": ", e$message)
+      })
+    }
+  }
+  
+  cat("\n4. Summarizing results...\n")
+  cat("   ✅ Successfully cataloged", cataloged_count, "tables\n")
+  
+  # Get summary statistics
+  summary_sql <- "
+  SELECT 
+    data_year,
+    COUNT(*) as table_count,
+    SUM(row_count) as total_rows
+  FROM ipeds_metadata 
+  WHERE data_year IS NOT NULL
+  GROUP BY data_year 
+  ORDER BY data_year DESC
+  "
+  
+  summary_results <- DBI::dbGetQuery(db_connection, summary_sql)
+  
+  if (nrow(summary_results) > 0) {
+    cat("\n   Data Summary by Year:\n")
+    for (i in seq_len(nrow(summary_results))) {
+      year <- summary_results$data_year[i]
+      tables <- summary_results$table_count[i]
+      rows <- summary_results$total_rows[i]
+      cat(sprintf("   %d: %d tables, %s rows\n", year, tables, format(rows, big.mark = ",")))
+    }
+  }
+  
+  # Check for tables without years
+  no_year_count <- DBI::dbGetQuery(db_connection, "SELECT COUNT(*) as count FROM ipeds_metadata WHERE data_year IS NULL")$count
+  
+  if (no_year_count > 0) {
+    cat(sprintf("\n   ⚠️  %d tables could not be assigned to a year\n", no_year_count))
+  }
+  
+  cat("\n", paste(rep("=", 60), collapse = ""), "\n")
+  cat("VERSION TRACKING INITIALIZATION COMPLETE\n")
+  cat(paste(rep("=", 60), collapse = ""), "\n")
+  cat("Initialization completed at:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
+  cat("Database now has baseline version tracking for all existing tables.\n")
+  
+  return(TRUE)
+}
+  
+  if (is.null(db_connection)) {
+    db_connection <- ensure_connection()
+  }
+  
+  # Create metadata table to track data versions
+  create_metadata_sql <- "
+    CREATE TABLE IF NOT EXISTS ipeds_metadata (
+      table_name TEXT PRIMARY KEY,
+      data_year INTEGER,
+      survey_component TEXT,
+      description TEXT,
+      source_url TEXT,
+      download_date TEXT,
+      file_size INTEGER,
+      row_count INTEGER,
+      column_count INTEGER,
+      checksum TEXT,
+      version TEXT,
+      status TEXT,
+      notes TEXT
+    )
+  "
+  
+  # Create schema changes tracking table
+  create_schema_sql <- "
+    CREATE TABLE IF NOT EXISTS ipeds_schema_changes (
+      id INTEGER PRIMARY KEY,
+      table_name TEXT,
+      change_date TEXT,
+      change_type TEXT,
+      column_name TEXT,
+      old_value TEXT,
+      new_value TEXT,
+      description TEXT
+    )
+  "
+  
+  # Create data quality tracking table
+  create_quality_sql <- "
+    CREATE TABLE IF NOT EXISTS ipeds_data_quality (
+      id INTEGER PRIMARY KEY,
+      table_name TEXT,
+      check_date TEXT,
+      check_type TEXT,
+      status TEXT,
+      details TEXT,
+      row_count INTEGER,
+      issue_count INTEGER
+    )
+  "
+  
+  tryCatch({
+    DBI::dbExecute(db_connection, create_metadata_sql)
+    DBI::dbExecute(db_connection, create_schema_sql)
+    DBI::dbExecute(db_connection, create_quality_sql)
+    
+    message("Version tracking tables initialized successfully")
+    return(TRUE)
+    
+  }, error = function(e) {
+    warning("Error initializing version tracking: ", e$message)
+    return(FALSE)
+  })
+}
 
 #' Record metadata for a newly imported table
 #' @param table_name Name of the table

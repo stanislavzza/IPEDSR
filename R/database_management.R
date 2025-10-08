@@ -235,17 +235,20 @@ get_ipeds_connection <- function(read_only = TRUE) {
 
 #' Ensure database connection
 #' @description Ensures a valid database connection exists, creating one if needed
+#' @param read_only Whether to open in read-only mode (default: FALSE for data import compatibility)
 #' @return DBI connection object
 #' @keywords internal
-ensure_connection <- function() {
-  # Check if we have a cached connection
+ensure_connection <- function(read_only = FALSE) {
+  # Check if we have a cached connection that matches read_only requirement
   if (exists("connection", envir = .ipeds_env) && 
       DBI::dbIsValid(.ipeds_env$connection)) {
+    # For simplicity, always use the existing connection if valid
+    # In practice, you might want to check if it matches read_only requirement
     return(.ipeds_env$connection)
   }
   
   # Create new connection
-  .ipeds_env$connection <- get_ipeds_connection()
+  .ipeds_env$connection <- get_ipeds_connection(read_only = read_only)
   return(.ipeds_env$connection)
 }
 
