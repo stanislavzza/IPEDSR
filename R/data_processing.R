@@ -33,13 +33,16 @@ download_ipeds_csv <- function(file_info, download_dir = get_ipeds_downloads_pat
   }
   
   # Construct local filename
+  # Clean table name (remove .zip extension if present) for final CSV filename
+  clean_table_name <- gsub("\\.zip$", "", file_info$table_name)
+  
   if (use_zip) {
     temp_filename <- paste0(file_info$table_name, ".zip")
     temp_path <- file.path(download_dir, temp_filename)
-    final_filename <- paste0(file_info$table_name, ".csv")
+    final_filename <- paste0(clean_table_name, ".csv")
     final_path <- file.path(download_dir, final_filename)
   } else {
-    temp_filename <- paste0(file_info$table_name, ".csv")
+    temp_filename <- paste0(clean_table_name, ".csv")
     temp_path <- file.path(download_dir, temp_filename)
     final_path <- temp_path
   }
@@ -140,8 +143,8 @@ download_ipeds_csv <- function(file_info, download_dir = get_ipeds_downloads_pat
       final_path <- temp_path
     }
     
-    # Validate the downloaded file
-    validation <- validate_downloaded_file(validation_path, file_info$table_name, verbose)
+    # Validate the downloaded file using clean table name
+    validation <- validate_downloaded_file(validation_path, clean_table_name, verbose)
     
     if (!validation$valid) {
       warning("Downloaded file failed validation: ", 
@@ -387,8 +390,11 @@ batch_download_ipeds_files <- function(file_list, download_dir = get_ipeds_downl
   }
   
   # Create results tracking data frame
+  # Clean table names for database operations (remove .zip extension)
+  clean_table_names <- gsub("\\.zip$", "", file_list$table_name)
+  
   results <- data.frame(
-    table_name = file_list$table_name,
+    table_name = clean_table_names,  # Use clean names in results
     download_success = FALSE,
     import_success = FALSE,
     error_message = "",
@@ -400,20 +406,21 @@ batch_download_ipeds_files <- function(file_list, download_dir = get_ipeds_downl
   # Process files (for now, sequentially - could be parallelized)
   for (i in seq_len(nrow(file_list))) {
     file_info <- file_list[i, ]
+    clean_table_name <- clean_table_names[i]  # Use pre-calculated clean name
     
     start_time <- Sys.time()
     
     if (verbose) {
-      message("Processing ", i, "/", nrow(file_list), ": ", file_info$table_name)
+      message("Processing ", i, "/", nrow(file_list), ": ", clean_table_name)
     }
     
     # Check if table already exists in database
     existing_tables <- DBI::dbListTables(db_connection)
-    table_exists <- file_info$table_name %in% existing_tables
+    table_exists <- clean_table_name %in% existing_tables
     
     if (table_exists && !force_redownload) {
       if (verbose) {
-        message("  ✓ Table ", file_info$table_name, " already exists, skipping download")
+        message("  ✓ Table ", clean_table_name, " already exists, skipping download")
       }
       results$download_success[i] <- TRUE
       results$import_success[i] <- TRUE
@@ -421,7 +428,7 @@ batch_download_ipeds_files <- function(file_list, download_dir = get_ipeds_downl
       # Get existing row count
       row_count <- DBI::dbGetQuery(
         db_connection,
-        paste("SELECT COUNT(*) as n FROM", file_info$table_name)
+        paste("SELECT COUNT(*) as n FROM", clean_table_name)
       )$n
       results$row_count[i] <- row_count
       
@@ -439,10 +446,7 @@ batch_download_ipeds_files <- function(file_list, download_dir = get_ipeds_downl
     if (!is.null(csv_path)) {
       results$download_success[i] <- TRUE
       
-      # Clean table name for database (remove .zip extension)
-      clean_table_name <- gsub("\\.zip$", "", file_info$table_name)
-      
-      # Import to database
+      # Import to database using clean table name
       import_success <- import_csv_to_duckdb(
         csv_path, 
         clean_table_name, 
@@ -557,7 +561,7 @@ update_ipeds_database_year <- function(year, components = NULL,
       message("Skipping ", nrow(existing_files), " existing tables. ",
               "Use force_redownload=TRUE to update them.")
       available_files <- available_files[
-        !available_files$table_name %in% existing_tables,
+        !clean_table_names %in% existing_tables,
       ]
     }
   }
