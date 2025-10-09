@@ -352,7 +352,7 @@ update_data <- function(years = NULL, force_download = FALSE, verbose = TRUE, ba
   }
   update_consolidated_dictionaries_new(con, verbose)
   
-  dbDisconnect(con)
+  DBI::dbDisconnect(con)
   
   if (verbose) {
     message("\n", paste(rep("=", 60), collapse=""))
@@ -448,6 +448,9 @@ extract_data_files_comprehensive <- function(html_content, year_2digit) {
   
   # Filter out dictionary files (containing "Dict" or "_Dict")
   data_urls <- urls[!grepl("_?[Dd]ict\\.zip", urls)]
+  
+  # Filter out Stata files (_Data_Stata.zip) since they contain identical data to regular files
+  data_urls <- data_urls[!grepl("_Data_Stata\\.zip", data_urls)]
   
   # Construct full URLs
   base_url <- "https://nces.ed.gov/ipeds/datacenter/data/"
