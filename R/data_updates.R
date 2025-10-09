@@ -449,8 +449,11 @@ extract_data_files_comprehensive <- function(html_content, year_2digit) {
   # Filter out dictionary files (containing "Dict" or "_Dict")
   data_urls <- urls[!grepl("_?[Dd]ict\\.zip", urls)]
   
-  # Filter out Stata files (_Data_Stata.zip) since they contain identical data to regular files
-  data_urls <- data_urls[!grepl("_Data_Stata\\.zip", data_urls)]
+  # Filter out ALL statistical software formats - we only want regular CSV files
+  # Exclude: _Data_Stata.zip, _SPS.zip, _SAS.zip, _Stata.zip
+  data_urls <- data_urls[!grepl("_(Data_)?Stata\\.zip$", data_urls)]
+  data_urls <- data_urls[!grepl("_SPS\\.zip$", data_urls)]
+  data_urls <- data_urls[!grepl("_SAS\\.zip$", data_urls)]
   
   # Construct full URLs
   base_url <- "https://nces.ed.gov/ipeds/datacenter/data/"
