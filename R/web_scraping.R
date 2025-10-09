@@ -100,9 +100,34 @@ parse_file_row <- function(cells, cell_texts, year) {
   zip_links <- rvest::html_elements(cells, "a[href*='.zip']")
   zip_link <- if (length(zip_links) > 0) rvest::html_attr(zip_links[1], "href") else ""
   
-  # Look for dictionary links
-  dict_links <- rvest::html_elements(cells, "a[href*='Dictionary']")
-  dictionary_link <- if (length(dict_links) > 0) rvest::html_attr(dict_links[1], "href") else ""
+  # ENHANCED: Look for dictionary links with _Dict.zip pattern in ALL cells
+  dictionary_link <- ""
+  dict_file_name <- ""
+  
+  # Check each cell for dictionary links (especially the last column)
+  for (j in seq_along(cells)) {
+    # Look for links containing "_Dict.zip" 
+    dict_links <- rvest::html_elements(cells[j], "a[href*='_Dict.zip']")
+    if (length(dict_links) > 0) {
+      dictionary_link <- rvest::html_attr(dict_links[1], "href")
+      dict_file_name <- basename(dictionary_link)
+      break  # Found it, stop looking
+    }
+    
+    # Also look for any links containing "Dict" (case insensitive)
+    dict_links_general <- rvest::html_elements(cells[j], "a")
+    if (length(dict_links_general) > 0) {
+      for (link in dict_links_general) {
+        href <- rvest::html_attr(link, "href")
+        if (!is.na(href) && grepl("Dict", href, ignore.case = TRUE)) {
+          dictionary_link <- href
+          dict_file_name <- basename(href)
+          break
+        }
+      }
+      if (dictionary_link != "") break
+    }
+  }
   
   # Extract table name from CSV filename first, then ZIP if no CSV
   table_name <- extract_table_name_from_link(csv_link)
@@ -125,6 +150,7 @@ parse_file_row <- function(cells, cell_texts, year) {
     csv_link = csv_link,
     zip_link = zip_link,
     dictionary_link = dictionary_link,
+    dictionary_file = dict_file_name,  # NEW: Store the dictionary filename
     file_size = "", # Would need to be extracted from page or determined by download
     last_modified = as.character(Sys.Date()), # Placeholder
     source_url = paste0("https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx?year=", year),
@@ -171,6 +197,7 @@ create_empty_files_dataframe <- function() {
     csv_link = character(0),
     zip_link = character(0),
     dictionary_link = character(0),
+    dictionary_file = character(0),  # NEW: Dictionary filename
     file_size = character(0),
     last_modified = character(0),
     source_url = character(0),
