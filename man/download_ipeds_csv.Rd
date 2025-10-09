@@ -6,7 +6,7 @@
 \usage{
 download_ipeds_csv(
   file_info,
-  download_dir = file.path("data", "downloads"),
+  download_dir = get_ipeds_downloads_path(),
   force_redownload = FALSE,
   verbose = TRUE
 )
@@ -14,7 +14,7 @@ download_ipeds_csv(
 \arguments{
 \item{file_info}{Single row from file listing with download information}
 
-\item{download_dir}{Directory to store downloaded files (default: data/downloads)}
+\item{download_dir}{Directory to store downloaded files (default: persistent downloads directory)}
 
 \item{force_redownload}{Whether to redownload even if file exists}
 

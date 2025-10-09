@@ -6,7 +6,7 @@
 \usage{
 batch_download_ipeds_files(
   file_list,
-  download_dir = file.path("data", "downloads"),
+  download_dir = get_ipeds_downloads_path(),
   db_connection = NULL,
   max_concurrent = 3,
   force_redownload = FALSE,
@@ -16,7 +16,7 @@ batch_download_ipeds_files(
 \arguments{
 \item{file_list}{Data frame with file information (from scraping functions)}
 
-\item{download_dir}{Directory for downloads (default: data/downloads)}
+\item{download_dir}{Directory for downloads (default: persistent downloads directory)}
 
 \item{db_connection}{Database connection (optional)}
 
