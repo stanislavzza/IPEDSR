@@ -593,9 +593,104 @@ import_data_file_new <- function(file_path, table_name, con, verbose) {
     
     csv_file <- csv_files[1]
     
-    # Read and import CSV
-    data <- read.csv(csv_file, stringsAsFactors = FALSE)
-    DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
+    # Read CSV with duplicate row handling and encoding issues
+    data <- tryCatch({
+      # First try normal read
+      read.csv(csv_file, stringsAsFactors = FALSE)
+    }, error = function(e) {
+      if (grepl("duplicate.*row.*names", e$message, ignore.case = TRUE)) {
+        if (verbose) message("        Detected duplicate row names, handling...")
+        
+        # Read without row names to avoid the duplicate issue
+        data_no_rownames <- read.csv(csv_file, stringsAsFactors = FALSE, row.names = NULL)
+        
+        # Remove any duplicate rows based on all columns
+        if (nrow(data_no_rownames) > 0) {
+          original_rows <- nrow(data_no_rownames)
+          data_no_rownames <- data_no_rownames[!duplicated(data_no_rownames), ]
+          removed_rows <- original_rows - nrow(data_no_rownames)
+          if (verbose && removed_rows > 0) {
+            message("        Removed ", removed_rows, " duplicate rows")
+          }
+        }
+        
+        return(data_no_rownames)
+      } else {
+        # Try with different encoding if it's an encoding issue
+        if (grepl("encoding|unicode|byte", e$message, ignore.case = TRUE)) {
+          if (verbose) message("        Detected encoding issue, trying different encodings...")
+          
+          # Try common encodings
+          for (encoding in c("UTF-8", "latin1", "CP1252")) {
+            tryCatch({
+              data_encoded <- read.csv(csv_file, stringsAsFactors = FALSE, 
+                                     row.names = NULL, encoding = encoding)
+              if (verbose) message("        Successfully read with encoding: ", encoding)
+              
+              # Remove duplicates if any
+              if (nrow(data_encoded) > 0) {
+                original_rows <- nrow(data_encoded)
+                data_encoded <- data_encoded[!duplicated(data_encoded), ]
+                removed_rows <- original_rows - nrow(data_encoded)
+                if (verbose && removed_rows > 0) {
+                  message("        Removed ", removed_rows, " duplicate rows")
+                }
+              }
+              
+              return(data_encoded)
+            }, error = function(e2) {
+              # Continue to next encoding
+            })
+          }
+        }
+        
+        # Re-throw other errors
+        stop(e)
+      }
+    })
+    
+    # Clean data and write to database with error handling
+    tryCatch({
+      # Clean character columns to handle Unicode issues
+      if (is.data.frame(data) && nrow(data) > 0) {
+        # Find character columns
+        char_cols <- sapply(data, is.character)
+        if (any(char_cols)) {
+          if (verbose) message("        Cleaning character data for Unicode issues...")
+          for (col in names(data)[char_cols]) {
+            # Replace problematic characters and ensure valid UTF-8
+            data[[col]] <- iconv(data[[col]], to = "UTF-8", sub = "")
+            # Remove any remaining non-printable characters
+            data[[col]] <- gsub("[^\x01-\x7F]", "", data[[col]])
+          }
+        }
+      }
+      
+      DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
+    }, error = function(e) {
+      if (grepl("unicode|encoding", e$message, ignore.case = TRUE)) {
+        if (verbose) message("        Database Unicode error, applying additional cleaning...")
+        
+        # More aggressive cleaning for problematic data
+        if (is.data.frame(data) && nrow(data) > 0) {
+          for (col in names(data)) {
+            if (is.character(data[[col]])) {
+              # Convert to ASCII only, removing all non-ASCII characters
+              data[[col]] <- iconv(data[[col]], to = "ASCII", sub = "")
+              # Remove any NULL bytes or other problematic characters
+              data[[col]] <- gsub("[\001-\010\013-\014\016-\037\177]", "", data[[col]])
+            }
+          }
+          
+          # Try writing again
+          DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
+        } else {
+          stop(e)
+        }
+      } else {
+        stop(e)
+      }
+    })
     
     # Clean up
     unlink(extract_dir, recursive = TRUE)
