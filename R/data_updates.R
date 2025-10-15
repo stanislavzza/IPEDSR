@@ -1020,8 +1020,85 @@ update_consolidated_dictionaries_new <- function(con, verbose) {
     if (verbose) message("      tables_all updated")
   }
   
-  # Recreate vartable_All and valuesets_All with similar logic...
-  # (Abbreviated for space - would include full implementation)
+  # Recreate vartable_all (lowercase to match standardization)
+  if (length(vartable_tables) > 0) {
+    if (verbose) message("    Updating vartable_all...")
+    
+    # First pass: collect all unique column names across all vartable tables
+    all_vartable_columns <- list()
+    for (table in vartable_tables) {
+      all_vartable_columns[[table]] <- DBI::dbListFields(con, table)
+    }
+    all_unique_vartable_cols <- unique(unlist(all_vartable_columns))
+    
+    # Second pass: build queries with NULL placeholders for missing columns
+    vartable_queries <- c()
+    for (table in vartable_tables) {
+      year <- gsub("vartable", "", table, ignore.case = TRUE)
+      year_4digit <- ifelse(as.numeric(year) <= 50, 2000 + as.numeric(year), 1900 + as.numeric(year))
+      
+      cols <- all_vartable_columns[[table]]
+      
+      # Build SELECT list with all columns, using NULL where missing
+      select_parts <- c()
+      for (col in all_unique_vartable_cols) {
+        if (col %in% cols) {
+          select_parts <- c(select_parts, col)
+        } else {
+          select_parts <- c(select_parts, sprintf("NULL as %s", col))
+        }
+      }
+      select_parts <- c(select_parts, sprintf("%d as YEAR", year_4digit))
+      
+      query <- sprintf('SELECT %s FROM %s', paste(select_parts, collapse=", "), table)
+      vartable_queries <- c(vartable_queries, query)
+    }
+    
+    union_query <- paste(vartable_queries, collapse=" UNION ALL ")
+    DBI::dbExecute(con, sprintf("CREATE OR REPLACE TABLE vartable_all AS %s", union_query))
+    
+    if (verbose) message("      vartable_all updated")
+  }
+  
+  # Recreate valuesets_all (lowercase to match standardization)
+  if (length(valuesets_tables) > 0) {
+    if (verbose) message("    Updating valuesets_all...")
+    
+    # First pass: collect all unique column names across all valuesets tables
+    all_valuesets_columns <- list()
+    for (table in valuesets_tables) {
+      all_valuesets_columns[[table]] <- DBI::dbListFields(con, table)
+    }
+    all_unique_valuesets_cols <- unique(unlist(all_valuesets_columns))
+    
+    # Second pass: build queries with NULL placeholders for missing columns
+    valuesets_queries <- c()
+    for (table in valuesets_tables) {
+      year <- gsub("valuesets", "", table, ignore.case = TRUE)
+      year_4digit <- ifelse(as.numeric(year) <= 50, 2000 + as.numeric(year), 1900 + as.numeric(year))
+      
+      cols <- all_valuesets_columns[[table]]
+      
+      # Build SELECT list with all columns, using NULL where missing
+      select_parts <- c()
+      for (col in all_unique_valuesets_cols) {
+        if (col %in% cols) {
+          select_parts <- c(select_parts, col)
+        } else {
+          select_parts <- c(select_parts, sprintf("NULL as %s", col))
+        }
+      }
+      select_parts <- c(select_parts, sprintf("%d as YEAR", year_4digit))
+      
+      query <- sprintf('SELECT %s FROM %s', paste(select_parts, collapse=", "), table)
+      valuesets_queries <- c(valuesets_queries, query)
+    }
+    
+    union_query <- paste(valuesets_queries, collapse=" UNION ALL ")
+    DBI::dbExecute(con, sprintf("CREATE OR REPLACE TABLE valuesets_all AS %s", union_query))
+    
+    if (verbose) message("      valuesets_all updated")
+  }
   
   if (verbose) message("    Consolidated dictionary tables updated successfully")
 }

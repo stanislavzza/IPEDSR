@@ -4,13 +4,31 @@
 \alias{get_valueset}
 \title{Get valueset}
 \usage{
-get_valueset(my_table)
+get_valueset(my_table, year = NULL, variable_name = NULL)
 }
 \arguments{
-\item{my_table}{The IPEDS table being accessed}
+\item{my_table}{The IPEDS table name (e.g., "HD2023", "hd2023", or just "HD" for most recent)}
+
+\item{year}{Optional year (2004-2024). If provided with table name, will construct table_name + year}
+
+\item{variable_name}{Optional variable name to filter results (e.g., "SECTOR", "CONTROL")}
+}
+\value{
+Data frame with varName, Codevalue, and valueLabel columns
 }
 \description{
-Given a table name
-look up the variables, codes, and labels that go with codes
-(e.g. STABBR has a code "SC" for "South Carolina")
+Given a table name, look up the variables, codes, and labels.
+For example, STABBR has code "SC" with label "South Carolina".
+}
+\examples{
+\dontrun{
+# Get all value sets for a table
+get_valueset("HD2023")
+
+# Get value sets for specific variable
+get_valueset("HD2023", variable_name = "SECTOR")
+
+# Using separate year parameter
+get_valueset("HD", year = 2023, variable_name = "CONTROL")
+}
 }

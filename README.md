@@ -175,11 +175,15 @@ quick_update()
 IPEDSR automatically maintains unified data dictionaries across all years:
 
 ```r
-# Get variable definitions
-variables <- get_variables(year = 2023, table_name = "HD")
+# Get variable definitions for a table
+variables <- get_variables("HD2023")
+# Or use separate parameters
+variables <- get_variables("HD", year = 2023)
 
-# Get value labels
-labels <- get_valueset(table_name = "HD2023", variable_name = "SECTOR")
+# Get value labels for a table
+labels <- get_valueset("HD2023")
+# Or filter to specific variable
+labels <- get_valueset("HD2023", variable_name = "SECTOR")
 
 # Get comprehensive data labels
 all_labels <- get_labels()

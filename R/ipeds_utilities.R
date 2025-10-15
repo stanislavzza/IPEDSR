@@ -34,45 +34,196 @@ get_labels <- function(my_table, df, verbose = FALSE){
 }
 
 #' Get IPEDS variable names
-#' @description Given a table name
-#' look up the variables and their friendly labels.,
-#' e.g. STABBR is state abbreviation.
-#' @param my_table The IPEDS table being accessed
+#' @description Given a table name, look up the variables and their friendly labels.
+#' For example, STABBR is "State abbreviation".
+#' @param my_table The IPEDS table name (e.g., "HD2023", "hd2023", or just "HD" for most recent)
+#' @param year Optional year (2004-2024). If provided with table name, will construct table_name + year
+#' @return Data frame with varName, varTitle, and longDescription columns
 #' @export
-get_variables <- function(my_table){
+#' @examples
+#' \dontrun{
+#' # Get variables for a specific table
+#' get_variables("HD2023")
+#' get_variables("hd2023")  # case-insensitive
+#' 
+#' # Or separate table and year
+#' get_variables("HD", year = 2023)
+#' }
+get_variables <- function(my_table, year = NULL){
   idbc <- ensure_connection()
   
-  # find the year. Depends on a four-digit year
-  yr <- stringr::str_extract(my_table, "\\d\\d\\d\\d") %>% stringr::str_sub(3,4)
+  # Handle year parameter if provided
+  if (!is.null(year)) {
+    # Extract just the table prefix if a full table name was provided
+    table_prefix <- gsub("\\d{4}|\\d{2}$", "", my_table, perl = TRUE)
+    my_table <- paste0(table_prefix, year)
+  }
+  
+  # Normalize table name to lowercase (our current standard)
+  my_table_lower <- tolower(my_table)
+  my_table_upper <- toupper(my_table)
+  
+  # Try to extract year from table name (4-digit or 2-digit)
+  yr_4digit <- stringr::str_extract(my_table, "\\d{4}")
+  yr_2digit <- stringr::str_extract(my_table, "\\d{2}$")
+  
+  if (!is.null(yr_4digit)) {
+    # 4-digit year found (e.g., HD2023)
+    yr <- stringr::str_sub(yr_4digit, 3, 4)
+  } else if (!is.null(yr_2digit)) {
+    # 2-digit year found (e.g., HD23)
+    yr <- yr_2digit
+  } else {
+    # No year in table name - try vartable_all
+    result <- dplyr::tbl(idbc, "vartable_all") %>%
+      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower) %>%
+      dplyr::select(varName, varTitle, longDescription) %>%
+      dplyr::collect()
+    
+    if (nrow(result) == 0) {
+      stop("Could not find variables for table '", my_table, "'. ",
+           "Please specify a year (e.g., 'HD2023' or use year parameter).")
+    }
+    return(result)
+  }
+  
   fname <- paste0("vartable", yr)
-
-  # get the index for the table
-  dplyr::tbl(idbc, fname ) %>%
-    dplyr::filter(TableName == my_table) %>%
-    dplyr::select(varName, varTitle, longDescription) %>%
-    dplyr::collect() %>%
-    return()
+  
+  # Check if year-specific table exists, otherwise use vartable_all
+  all_tables <- DBI::dbListTables(idbc)
+  
+  if (fname %in% all_tables) {
+    # Use year-specific vartable
+    result <- dplyr::tbl(idbc, fname) %>%
+      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower) %>%
+      dplyr::select(varName, varTitle, longDescription) %>%
+      dplyr::collect()
+  } else {
+    # Fall back to vartable_all
+    yr_4digit_full <- ifelse(as.numeric(yr) <= 50, 
+                             2000 + as.numeric(yr), 
+                             1900 + as.numeric(yr))
+    
+    result <- dplyr::tbl(idbc, "vartable_all") %>%
+      dplyr::filter((TableName == my_table_upper | TableName == my_table_lower) & 
+                    YEAR == yr_4digit_full) %>%
+      dplyr::select(varName, varTitle, longDescription) %>%
+      dplyr::collect()
+  }
+  
+  if (nrow(result) == 0) {
+    warning("No variables found for table '", my_table, "' (year: ", yr, "). ",
+            "Check if table name is correct.")
+  }
+  
+  return(result)
 }
 
 #' Get valueset
-#' @description Given a table name
-#' look up the variables, codes, and labels that go with codes
-#' (e.g. STABBR has a code "SC" for "South Carolina")
-#' @param my_table The IPEDS table being accessed
+#' @description Given a table name, look up the variables, codes, and labels.
+#' For example, STABBR has code "SC" with label "South Carolina".
+#' @param my_table The IPEDS table name (e.g., "HD2023", "hd2023", or just "HD" for most recent)
+#' @param year Optional year (2004-2024). If provided with table name, will construct table_name + year
+#' @param variable_name Optional variable name to filter results (e.g., "SECTOR", "CONTROL")
+#' @return Data frame with varName, Codevalue, and valueLabel columns
 #' @export
-get_valueset <- function(my_table){
+#' @examples
+#' \dontrun{
+#' # Get all value sets for a table
+#' get_valueset("HD2023")
+#' 
+#' # Get value sets for specific variable
+#' get_valueset("HD2023", variable_name = "SECTOR")
+#' 
+#' # Using separate year parameter
+#' get_valueset("HD", year = 2023, variable_name = "CONTROL")
+#' }
+get_valueset <- function(my_table, year = NULL, variable_name = NULL){
   idbc <- ensure_connection()
   
-  # find the year. Depends on a four-digit year
-  yr <- stringr::str_extract(my_table, "\\d\\d\\d\\d") %>% stringr::str_sub(3,4)
+  # Handle year parameter if provided
+  if (!is.null(year)) {
+    # Extract just the table prefix if a full table name was provided
+    table_prefix <- gsub("\\d{4}|\\d{2}$", "", my_table, perl = TRUE)
+    my_table <- paste0(table_prefix, year)
+  }
+  
+  # Normalize table name to lowercase (our current standard)
+  my_table_lower <- tolower(my_table)
+  my_table_upper <- toupper(my_table)
+  
+  # Try to extract year from table name (4-digit or 2-digit)
+  yr_4digit <- stringr::str_extract(my_table, "\\d{4}")
+  yr_2digit <- stringr::str_extract(my_table, "\\d{2}$")
+  
+  if (!is.null(yr_4digit)) {
+    # 4-digit year found (e.g., HD2023)
+    yr <- stringr::str_sub(yr_4digit, 3, 4)
+  } else if (!is.null(yr_2digit)) {
+    # 2-digit year found (e.g., HD23)
+    yr <- yr_2digit
+  } else {
+    # No year in table name - try valuesets_all
+    query <- dplyr::tbl(idbc, "valuesets_all") %>%
+      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower)
+    
+    if (!is.null(variable_name)) {
+      query <- query %>% dplyr::filter(varName == toupper(variable_name))
+    }
+    
+    result <- query %>%
+      dplyr::select(varName, Codevalue, valueLabel) %>%
+      dplyr::collect()
+    
+    if (nrow(result) == 0) {
+      stop("Could not find value sets for table '", my_table, "'. ",
+           "Please specify a year (e.g., 'HD2023' or use year parameter).")
+    }
+    return(result)
+  }
+  
   fname <- paste0("valuesets", yr)
-
-  # get the index for the table
-  dplyr::tbl(idbc, fname ) %>%
-    dplyr::filter(TableName == my_table) %>%
-    dplyr::select(varName, Codevalue,valueLabel) %>%
-    dplyr::collect() %>%
-    return()
+  
+  # Check if year-specific table exists, otherwise use valuesets_all
+  all_tables <- DBI::dbListTables(idbc)
+  
+  if (fname %in% all_tables) {
+    # Use year-specific valuesets table
+    query <- dplyr::tbl(idbc, fname) %>%
+      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower)
+    
+    if (!is.null(variable_name)) {
+      query <- query %>% dplyr::filter(varName == toupper(variable_name))
+    }
+    
+    result <- query %>%
+      dplyr::select(varName, Codevalue, valueLabel) %>%
+      dplyr::collect()
+  } else {
+    # Fall back to valuesets_all
+    yr_4digit_full <- ifelse(as.numeric(yr) <= 50, 
+                             2000 + as.numeric(yr), 
+                             1900 + as.numeric(yr))
+    
+    query <- dplyr::tbl(idbc, "valuesets_all") %>%
+      dplyr::filter((TableName == my_table_upper | TableName == my_table_lower) & 
+                    YEAR == yr_4digit_full)
+    
+    if (!is.null(variable_name)) {
+      query <- query %>% dplyr::filter(varName == toupper(variable_name))
+    }
+    
+    result <- query %>%
+      dplyr::select(varName, Codevalue, valueLabel) %>%
+      dplyr::collect()
+  }
+  
+  if (nrow(result) == 0) {
+    warning("No value sets found for table '", my_table, "' (year: ", yr, "). ",
+            "Check if table name is correct.")
+  }
+  
+  return(result)
 }
 
 #' Retrieve IPEDS data with columns renamed

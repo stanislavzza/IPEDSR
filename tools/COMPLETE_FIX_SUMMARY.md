@@ -59,6 +59,27 @@
 
 ---
 
+### Issue 7: Schema Inconsistency in Consolidation ✅ FIXED
+**Symptom**: `update_data()` failed with "Referenced column 'Release date' not found" and "Set operations can only apply to expressions with the same number of result columns"  
+**Root Cause**: 
+- **tables**: Column count heuristic didn't detect which columns exist
+- **vartable/valuesets**: Schemas vary completely across years (different column counts)
+**Fix**: 
+- **tables**: Check actual column names with `"Release date" %in% cols`
+- **vartable/valuesets**: Collect all unique columns, use NULL placeholders for missing ones
+**Files Modified**: `R/data_updates.R` lines 965-1105  
+**Impact**: All three consolidated tables (tables_all, vartable_all, valuesets_all) now handle varying schemas correctly
+
+**Details**: 
+- `tables`: Some have "Release date" and F11-F16 columns, others don't
+- `vartable`: Early years have 4 columns, mid years have 6, later years have 8+
+- `valuesets`: Similar variation in schema across years
+- Solution: Two-pass approach - first collect all unique columns, then build SELECTs with NULL placeholders
+
+See: `SCHEMA_DETECTION_FIX.md` for complete details.
+
+---
+
 ## Quick Start: Apply All Fixes
 
 ### 1. Reload Package with Fixes
