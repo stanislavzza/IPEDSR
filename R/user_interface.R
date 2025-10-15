@@ -418,25 +418,15 @@ ui_backup_database <- function(interactive = TRUE) {
   tryCatch({
     result <- backup_database()
     
-    if (result) {
+    if (!is.null(result)) {
       cat("✅ Backup created successfully\n")
-      
-      # Show backup location
-      db_connection <- ensure_connection()
-      backup_dir <- file.path(dirname(db_connection@dbname), "backups")
-      if (dir.exists(backup_dir)) {
-        backups <- list.files(backup_dir, pattern = "\\.duckdb$", full.names = TRUE)
-        if (length(backups) > 0) {
-          latest_backup <- backups[which.max(file.mtime(backups))]
-          cat("Latest backup:", basename(latest_backup), "\n")
-          cat("Location:", backup_dir, "\n")
-        }
-      }
+      cat("Latest backup:", basename(result), "\n")
+      cat("Location:", dirname(result), "\n")
     } else {
       cat("❌ Backup failed\n")
     }
     
-    return(invisible(result))
+    return(invisible(!is.null(result)))
     
   }, error = function(e) {
     cat("❌ Backup error:", e$message, "\n")
