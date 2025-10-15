@@ -43,15 +43,15 @@ get_cips <- function(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "
     if (!is.null(cip_codes)) {
       tdf <- tdf %>% filter(CIPCODE %in% !!cip_codes)
     } else {
-      tdf <- tdf %>% filter(CIPCODE != "99") # 99 is total degrees
+      tdf <- tdf %>% dplyr::filter(CIPCODE != "99") # 99 is total degrees
     }
 
-    if(!is.null(UNITIDs)) tdf <- tdf %>% filter(UNITID %in% !!UNITIDs)
+    if(!is.null(UNITIDs)) tdf <- tdf %>% dplyr::filter(UNITID %in% !!UNITIDs)
 
     tdf <- tdf %>% # CIP 99 is total
-      select(UNITID, CIPCODE, MAJORNUM, N = CTOTALT) %>%
-      collect() %>%
-      mutate(Year = year)
+      dplyr::select(UNITID, CIPCODE, MAJORNUM, N = CTOTALT) %>%
+      dplyr::collect() %>%
+      dplyr::mutate(Year = year)
 
       out <- rbind(out,tdf)
   }

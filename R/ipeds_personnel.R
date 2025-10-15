@@ -76,29 +76,32 @@ get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
       dplyr::select(UNITID, Row, Column, Value = Codevalue) %>%
       dplyr::mutate(Value = as.integer(Value))
 
-    # combine it all
+    # combine it all - specify join keys to avoid messages and ensure correct joins
     df <- df1 %>%
-       dplyr::left_join(df0) %>%
-       dplyr::left_join(df2) %>%
+       dplyr::left_join(df0, by = c("UNITID", "Row")) %>%
+       dplyr::left_join(df2, by = c("UNITID", "Row")) %>%
        dplyr::mutate(Year = year)
 
     if (is.null(out)) {
       out <- df
     } else {
-      out <- dplyr::full_join(out, df)
+      # Use bind_rows instead of full_join to stack years
+      out <- dplyr::bind_rows(out, df)
     }
   }
 
   # Keep only columns that are found in the most recent year
   most_recent <- max(out$Year)
 
-  keep_cols <- df %>%
+  keep_cols <- out %>%
     dplyr::filter(Year == most_recent) %>%
-    dplyr::select(Column)  %>%
+    dplyr::select(Column) %>%
     dplyr::distinct()
 
  out %>%
     dplyr::filter(Column %in% keep_cols$Column) %>%
+    # Remove duplicates before spreading to avoid "duplicate keys" error
+    dplyr::distinct(UNITID, Row, Rank, Tenure, Column, Year, .keep_all = TRUE) %>%
     tidyr::spread(Column, Value) %>%
    dplyr::ungroup() %>%
    return()

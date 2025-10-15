@@ -180,13 +180,14 @@ variables <- get_variables("HD2023")
 # Or use separate parameters
 variables <- get_variables("HD", year = 2023)
 
-# Get value labels for a table
-labels <- get_valueset("HD2023")
+# Get value labels (code mappings) for a table
+valuesets <- get_valueset("HD2023")
 # Or filter to specific variable
-labels <- get_valueset("HD2023", variable_name = "SECTOR")
+sector_codes <- get_valueset("HD2023", variable_name = "SECTOR")
 
-# Get comprehensive data labels
-all_labels <- get_labels()
+# Transform a dataframe to use human-readable labels
+data <- get_ipeds_table("HD2023", "23", UNITIDs = c(218070, 139755))
+labeled_data <- get_labels("HD2023", data)
 ```
 
 ## 📖 Available Functions

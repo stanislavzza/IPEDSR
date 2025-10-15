@@ -134,9 +134,9 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
                NRAlien = EFRACE17)
     } else if(tname <= "EF2009A"){
 
-      tdf <- tbl(idbc, tname) %>%
-        filter( EFALEVEL %in% !!StudentTypeCode) %>%
-        select(UNITID,
+      tdf <- dplyr::tbl(idbc, tname) %>%
+        dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
+        dplyr::select(UNITID,
                StudentTypeCode = EFALEVEL,
                Total = EFTOTLT,
                Men = EFTOTLM,
@@ -148,9 +148,9 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 
     } else {
 
-      tdf <- tbl(idbc, tname) %>%
-        filter( EFALEVEL %in% !!StudentTypeCode) %>%
-        select(UNITID,
+      tdf <- dplyr::tbl(idbc, tname) %>%
+        dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
+        dplyr::select(UNITID,
                StudentTypeCode = EFALEVEL,
                Total = EFTOTLT,
                Men = EFTOTLM,
@@ -163,19 +163,19 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 
     if(!is.null(UNITIDs)) {
       tdf <- tdf %>%
-        filter(UNITID %in% !!UNITIDs)
+        dplyr::filter(UNITID %in% !!UNITIDs)
     }
 
     tdf <- tdf %>%
-      collect() %>%
-      mutate(Year = year)
+      dplyr::collect() %>%
+      dplyr::mutate(Year = year)
 
     out <- rbind(out, tdf)
   }
 
   # add code descriptions
   out <- out %>%
-    left_join(student_codes)
+    dplyr::left_join(student_codes)
 
   return(out)
 }
@@ -206,43 +206,43 @@ get_retention <- function(UNITIDs = NULL){
     year <- as.integer(substr(tname, 3,6))
 
     if (year < 2007) {
-      df <- tbl(idbc,tname) %>%
-        select(UNITID,
+      df <- dplyr::tbl(idbc,tname) %>%
+        dplyr::select(UNITID,
                # cohort size not available
                Retention   = RET_PCF)
     } else {
-      df <- tbl(idbc,tname) %>%
-        select(UNITID,
+      df <- dplyr::tbl(idbc,tname) %>%
+        dplyr::select(UNITID,
                Cohort_size = RRFTCTA,
                Retention   = RET_PCF)
     }
 
     if(!is.null(UNITIDs)) {
       df <- df %>%
-        filter(UNITID %in% !!UNITIDs)
+        dplyr::filter(UNITID %in% !!UNITIDs)
     }
 
     df <- df %>%
-      collect() %>%
-      mutate(Year = year)
+      dplyr::collect() %>%
+      dplyr::mutate(Year = year)
 
     # add blank cohort column if it doesn't exist
     if(!"Cohort_size" %in% names(df)) {
       df <- df %>%
-        mutate(Cohort_size = NA)
+        dplyr::mutate(Cohort_size = NA)
     }
 
-    df <- df |> select(UNITID, Year, Cohort_size, Retention)
+    df <- df |> dplyr::select(UNITID, Year, Cohort_size, Retention)
 
     out <- rbind(out, df)
   }
   # fix it so that the retention rate lines up with the cohort size
   # otherwise the retention rate and cohort size are mismatched
   out <- out %>%
-    group_by(UNITID) %>%
-    arrange(Year) %>%
-    mutate(Cohort = Year - 1) %>%
-    ungroup()
+    dplyr::group_by(UNITID) %>%
+    dplyr::arrange(Year) %>%
+    dplyr::mutate(Cohort = Year - 1) %>%
+    dplyr::ungroup()
 
   return(out)
 }
@@ -272,8 +272,8 @@ get_admit_funnel <- function(UNITIDs = NULL){
 
     if(year >= 2014) next # spec changed
 
-    df <- tbl(idbc, tname) %>%
-      select(UNITID,
+    df <- dplyr::tbl(idbc, tname) %>%
+      dplyr::select(UNITID,
              Male_apps      = APPLCNM,
              Female_apps    = APPLCNW,
              Male_admits    = ADMSSNM,
@@ -297,11 +297,11 @@ get_admit_funnel <- function(UNITIDs = NULL){
       )
 
 
-    if (!is.null(UNITIDs)) df<- df %>% filter(UNITID %in% !!UNITIDs)
+    if (!is.null(UNITIDs)) df<- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
 
     df <- df |>
-      collect() %>%
-      mutate(
+      dplyr::collect() %>%
+      dplyr::mutate(
         Male_apps      = as.integer(Male_apps),
         Female_apps    = as.integer(Female_apps),
         Male_admits    = as.integer(Male_admits),
@@ -343,8 +343,8 @@ get_admit_funnel <- function(UNITIDs = NULL){
 
     if(year < 2014) next # spec changed
 
-    df <- tbl(idbc, tname) %>%
-      select(UNITID,
+    df <- dplyr::tbl(idbc, tname) %>%
+      dplyr::select(UNITID,
              Male_apps      = APPLCNM,
              Female_apps    = APPLCNW,
              Male_admits    = ADMSSNM,
@@ -367,11 +367,11 @@ get_admit_funnel <- function(UNITIDs = NULL){
              ACTPCT,
       )
 
-    if (!is.null(UNITIDs)) df<- df %>% filter(UNITID %in% !!UNITIDs)
+    if (!is.null(UNITIDs)) df<- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
 
     df <- df |>
-      collect() %>%
-      mutate(
+      dplyr::collect() %>%
+      dplyr::mutate(
         Male_apps      = as.integer(Male_apps),
         Female_apps    = as.integer(Female_apps),
         Male_admits    = as.integer(Male_admits),
@@ -440,15 +440,15 @@ get_fa_info <- function(UNITIDs = NULL){
     tname_set <- tnames[ str_detect(tnames, tname_prefix)]
 
     # start by joining all the tables in the set
-    df <- tbl(idbc,tname_set[1])
+    df <- dplyr::tbl(idbc,tname_set[1])
 
-    if(length(tname_set) == 2) df <- df %>% left_join(tbl(idbc,tname_set[2]))
-    if(length(tname_set) == 3) df <- df %>% left_join(tbl(idbc,tname_set[3]))
+    if(length(tname_set) == 2) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[2]))
+    if(length(tname_set) == 3) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[3]))
 
     if(Year < 2011) { ############ Old ones lacked some data
 
       df <- df %>%
-        select(UNITID,
+        dplyr::select(UNITID,
                N_undergraduates   = SCFA2,
                N_fall_cohort      = SCFA1N,
                Percent_PELL       = FGRNT_P,
@@ -459,12 +459,12 @@ get_fa_info <- function(UNITIDs = NULL){
         )
 
       if (!is.null(UNITIDs)) {
-        df <- df %>% filter(UNITID %in% !!UNITIDs)
+        df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
       }
 
       df <- df %>%
-        collect() %>%
-        mutate(
+        dplyr::collect() %>%
+        dplyr::mutate(
           T_inst_aid         = N_inst_aid * Avg_inst_aid,
           Avg_net_price      = NA,
           Avg_net_price_0k   = NA,
@@ -481,7 +481,7 @@ get_fa_info <- function(UNITIDs = NULL){
 
     } else { # 2011 on
       df <- df %>%
-        select(UNITID,
+        dplyr::select(UNITID,
                N_undergraduates   = SCFA2,
                N_fall_cohort      = SCFA1N,
                Percent_PELL       = FGRNT_P,
@@ -503,12 +503,12 @@ get_fa_info <- function(UNITIDs = NULL){
         )
 
       if (!is.null(UNITIDs)) {
-        df <- df %>% filter(UNITID %in% !!UNITIDs)
+        df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
       }
 
       df <- df %>%
-        collect() %>%
-        mutate(Year = Year)
+        dplyr::collect() %>%
+        dplyr::mutate(Year = Year)
     }
     out <- rbind(out,df)
   }

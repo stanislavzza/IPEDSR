@@ -4,7 +4,7 @@
 
 ## Major Changes
 
-This release includes 8 critical bug fixes and several API improvements that significantly enhance the package's reliability and usability.
+This release includes 9 critical bug fixes and several API improvements that significantly enhance the package's reliability and usability.
 
 ---
 
@@ -51,6 +51,29 @@ This release includes 8 critical bug fixes and several API improvements that sig
 - **Issue:** Documentation showed `get_variables(year = 2023, table_name = "HD")` but function only accepted `get_variables("HD2023")`
 - **Fix:** Enhanced both functions with flexible parameters
 - **Impact:** User-friendly API that matches documentation
+
+### Bug #9: Namespace Issues in Exported Functions ✅
+- **Issue:** Functions failed with "could not find function 'select'" unless tidyverse was explicitly loaded
+- **Fix:** Added proper `dplyr::`, `tidyr::` namespace prefixes to all tidyverse function calls
+- **Files Fixed:**
+  - `R/ipeds_completions.R`: `get_grad_demo_rates()`, `get_grad_pell_rates()`
+  - `R/ipeds_cohorts.R`: `ipeds_get_enrollment()`, `get_retention()`, `get_admit_funnel()`, `get_cohort_stats()`
+  - `R/ipeds_programs.R`: `get_cips()`
+- **Impact:** Package functions now work standalone without requiring `library(tidyverse)`
+
+### Bug #10: get_faculty() Function Broken ✅
+- **Issue:** Function produced hundreds of join messages and failed with "duplicate keys" error
+- **Problems:**
+  1. Implicit joins without `by` parameter → console spam
+  2. Used `full_join()` instead of `bind_rows()` → wrong data accumulation
+  3. Used wrong variable (`df` vs `out`) → incorrect filtering
+  4. No duplicate handling → `tidyr::spread()` failure
+- **Fix:** 
+  - Added explicit `by` parameters to joins (eliminates messages)
+  - Changed `full_join()` to `bind_rows()` (correct stacking)
+  - Fixed variable reference (correct filtering)
+  - Added `distinct()` before `spread()` (handles duplicates)
+- **Impact:** Function now works correctly with clean output
 
 ---
 
@@ -210,11 +233,11 @@ standardize_table_names_to_lowercase(verbose = TRUE)
 
 ## Statistics
 
-- **8 bugs fixed**
+- **10 bugs fixed**
 - **2 new exported functions**
-- **9 documentation guides created**
-- **7 diagnostic/test tools created**
-- **~300 lines of code improved**
+- **10 documentation guides created**
+- **8 diagnostic/test tools created**
+- **~370 lines of code improved**
 - **All tests passing** ✅
 
 ---

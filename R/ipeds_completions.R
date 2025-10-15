@@ -144,8 +144,8 @@ get_grad_demo_rates <- function(UNITIDs = NULL){
     if(year < 2008) next # format changed
 
     df <- dplyr::tbl(idbc,tname) %>%
-      filter(GRTYPE %in% c(2,3, 13)) %>% # 2 is cohort size, 3 is grads in 150%, 13 is 100%
-      select(UNITID,
+      dplyr::filter(GRTYPE %in% c(2,3, 13)) %>% # 2 is cohort size, 3 is grads in 150%, 13 is 100%
+      dplyr::select(UNITID,
              GRTYPE,
              Total =     GRTOTLT,
              Men   = GRTOTLM,
@@ -160,19 +160,19 @@ get_grad_demo_rates <- function(UNITIDs = NULL){
              Nonresident = GRNRALT)
 
     if (!is.null(UNITIDs)) {
-      df <- df %>% filter(UNITID %in% !!UNITIDs)
+      df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
     }
 
     df <- df %>%
-      collect() %>%
-      mutate(GRTYPE = case_when(GRTYPE == 2 ~ "Cohort",
+      dplyr::collect() %>%
+      dplyr::mutate(GRTYPE = dplyr::case_when(GRTYPE == 2 ~ "Cohort",
                                 GRTYPE == 3 ~ "Completed150",
                                 GRTYPE == 13 ~ "Completed")) %>%
-      gather(Type, N, -GRTYPE, -UNITID) %>%
-      spread(GRTYPE, N) %>%
-      mutate( Grad_rate_4yr = nan_to_na(Completed / Cohort),
+      tidyr::gather(Type, N, -GRTYPE, -UNITID) %>%
+      tidyr::spread(GRTYPE, N) %>%
+      dplyr::mutate( Grad_rate_4yr = nan_to_na(Completed / Cohort),
               Grad_rate_6yr = nan_to_na(Completed150 / Cohort)) %>%
-      mutate(Year = year)
+      dplyr::mutate(Year = year)
 
     out <- rbind(out, df)
 
@@ -211,22 +211,22 @@ get_grad_pell_rates <- function(UNITIDs = NULL){
     # rates as of August of this year
     year <- as.integer(substr(tname, 3,6))
 
-    df <- tbl(idbc,tname) %>%
+    df <- dplyr::tbl(idbc,tname) %>%
       # just bachelor's seeking
-      filter(PSGRTYPE ==	2) %>%
-      select(UNITID,
+      dplyr::filter(PSGRTYPE ==	2) %>%
+      dplyr::select(UNITID,
              PellCohort = PGADJCT,
              PellCompleters = PGCMBAC,
              StaffordCohort = SSADJCT,
              StaffordCompleters = SSCMBAC)
 
     if (!is.null(UNITIDs)) {
-      df <- df %>% filter(UNITID %in% !!UNITIDs)
+      df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
     }
 
     df <- df %>%
-      collect() %>%
-      mutate( Pell_rate_6yr = nan_to_na(PellCompleters / PellCohort),
+      dplyr::collect() %>%
+      dplyr::mutate( Pell_rate_6yr = nan_to_na(PellCompleters / PellCohort),
               Stafford_rate_6yr = nan_to_na(StaffordCompleters / StaffordCohort),
               Year = year)
 
