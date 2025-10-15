@@ -1079,3 +1079,119 @@ restore_database_backup <- function(backup_path, confirm = TRUE) {
   message("Database restored from backup: ", basename(backup_path))
   return(invisible(TRUE))
 }
+
+#' Add YEAR columns to existing database tables
+#' 
+#' This function scans all tables in the database and adds a YEAR column
+#' where one is missing, extracting the year from the table name.
+#' Useful for upgrading existing databases to have consistent YEAR columns.
+#' 
+#' @param tables Optional vector of specific table names to update. If NULL, updates all tables.
+#' @param verbose Whether to print progress messages
+#' @return Invisibly returns a list with counts of tables processed, updated, and skipped
+#' @export
+#' @examples
+#' \dontrun{
+#' # Add YEAR columns to all tables
+#' add_year_columns_to_database()
+#' 
+#' # Add YEAR columns to specific tables
+#' add_year_columns_to_database(tables = c("ADM2022", "ADM2023"))
+#' }
+add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
+  
+  con <- ensure_connection()
+  
+  # Get list of tables to process
+  if (is.null(tables)) {
+    all_tables <- DBI::dbListTables(con)
+    # Exclude metadata tables
+    tables <- all_tables[!grepl("^(ipeds_|sqlite_|Tables|vartable|valuesets)", all_tables)]
+  }
+  
+  if (verbose) {
+    message("Checking ", length(tables), " tables for YEAR columns...")
+  }
+  
+  updated <- 0
+  skipped <- 0
+  errors <- 0
+  
+  for (i in seq_along(tables)) {
+    table_name <- tables[i]
+    
+    if (verbose && (i == 1 || i == length(tables) || i %% 50 == 0)) {
+      message("Processing table ", i, "/", length(tables), ": ", table_name)
+    }
+    
+    tryCatch({
+      # Check if table already has a YEAR column
+      schema_query <- paste("PRAGMA table_info(", table_name, ")")
+      schema <- DBI::dbGetQuery(con, schema_query)
+      year_cols <- grep("^year$", schema$name, ignore.case = TRUE, value = TRUE)
+      
+      if (length(year_cols) > 0) {
+        # Already has YEAR column
+        skipped <- skipped + 1
+        next
+      }
+      
+      # Extract year from table name
+      year <- extract_year_from_table_name(table_name)
+      
+      if (is.na(year)) {
+        # No year found in table name
+        skipped <- skipped + 1
+        next
+      }
+      
+      # Add YEAR column using SQL ALTER TABLE
+      # First, check if we should add after UNITID or at the beginning
+      has_unitid <- "UNITID" %in% schema$name
+      
+      if (has_unitid) {
+        # Read table, add column, write back (DuckDB doesn't support ALTER TABLE ADD COLUMN at specific position)
+        data <- DBI::dbReadTable(con, table_name)
+        unitid_pos <- which(names(data) == "UNITID")
+        
+        # Insert YEAR after UNITID
+        if (unitid_pos < ncol(data)) {
+          data <- data[, c(1:unitid_pos, ncol(data) + 1, (unitid_pos + 1):ncol(data))]
+          data[, unitid_pos + 1] <- year
+          names(data)[unitid_pos + 1] <- "YEAR"
+        } else {
+          data$YEAR <- year
+        }
+        
+        DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
+      } else {
+        # Add YEAR as first column
+        data <- DBI::dbReadTable(con, table_name)
+        data <- cbind(YEAR = year, data)
+        DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
+      }
+      
+      updated <- updated + 1
+      
+    }, error = function(e) {
+      if (verbose) {
+        message("  Error processing ", table_name, ": ", e$message)
+      }
+      errors <- errors + 1
+    })
+  }
+  
+  if (verbose) {
+    message("\nYEAR column addition complete:")
+    message("  Tables updated: ", updated)
+    message("  Tables skipped: ", skipped, " (already have YEAR or no year in name)")
+    message("  Errors: ", errors)
+  }
+  
+  invisible(list(
+    total = length(tables),
+    updated = updated,
+    skipped = skipped,
+    errors = errors
+  ))
+}

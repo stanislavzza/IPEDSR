@@ -10,7 +10,7 @@ get_finances(UNITIDs = NULL)
 \item{UNITIDs}{vector of UNITIDs to retrieve. If NULL, uses configured default_unitid.}
 }
 \value{
-Dataframe with endowment, revenue and other statistics
+Dataframe with endowment, revenue and other statistics, ordered by UNITID and Year.
 }
 \description{
 Get financials

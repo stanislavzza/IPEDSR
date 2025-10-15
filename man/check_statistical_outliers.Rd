@@ -10,14 +10,9 @@ check_statistical_outliers(table_name, db_connection)
 \item{table_name}{Name of the table}
 
 \item{db_connection}{Database connection}
-
-\item{validation_results}{Results from validation}
 }
 \value{
 Check result data frame
-Print validation summary
-
-Vector of recommendations
 }
 \description{
 Check for statistical outliers in numeric data
