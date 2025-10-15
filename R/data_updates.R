@@ -1211,3 +1211,145 @@ add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
     errors = errors
   ))
 }
+
+#' Convert YEAR columns from DOUBLE to INTEGER type
+#'
+#' This function scans all tables in the IPEDS database and converts any YEAR
+#' columns that are stored as DOUBLE to INTEGER type. This is a cosmetic fix
+#' that makes the data types semantically correct (years should be integers)
+#' and eliminates validation warnings.
+#'
+#' @param tables Character vector of table names to process. If NULL (default),
+#'   processes all tables in the database.
+#' @param verbose Logical indicating whether to print progress messages.
+#'   Default is TRUE.
+#'
+#' @return Invisibly returns a list with components:
+#'   \item{total}{Total number of tables checked}
+#'   \item{converted}{Number of tables where YEAR was converted to INTEGER}
+#'   \item{already_integer}{Number of tables where YEAR was already INTEGER}
+#'   \item{no_year}{Number of tables without a YEAR column}
+#'   \item{errors}{Number of tables that encountered errors}
+#'
+#' @details
+#' The function uses DuckDB's ALTER TABLE to change the column type in place,
+#' which is efficient and doesn't require rewriting the entire table. The
+#' conversion is safe because:
+#' \itemize{
+#'   \item Years are always whole numbers (2019, 2020, etc.)
+#'   \item No precision is lost when converting DOUBLE to INTEGER
+#'   \item The operation is idempotent (can be run multiple times safely)
+#' }
+#'
+#' Before running this function on a production database, it's recommended
+#' to create a backup using \code{ipeds_data_manager("backup")}.
+#'
+#' @examples
+#' \dontrun{
+#' # Convert YEAR to INTEGER in all tables
+#' convert_year_to_integer()
+#'
+#' # Convert only specific tables
+#' convert_year_to_integer(tables = c("ADM2022", "ADM2023"))
+#'
+#' # Run without progress messages
+#' convert_year_to_integer(verbose = FALSE)
+#' }
+#'
+#' @export
+convert_year_to_integer <- function(tables = NULL, verbose = TRUE) {
+  
+  con <- ensure_connection()
+  
+  # Get list of tables to process
+  if (is.null(tables)) {
+    tables <- DBI::dbListTables(con)
+  }
+  
+  if (verbose) {
+    message("Checking ", length(tables), " tables for YEAR column type...")
+  }
+  
+  converted <- 0
+  already_integer <- 0
+  no_year <- 0
+  errors <- 0
+  
+  for (i in seq_along(tables)) {
+    table_name <- tables[i]
+    
+    if (verbose && (i == 1 || i == length(tables) || i %% 50 == 0)) {
+      message("Processing table ", i, "/", length(tables), ": ", table_name)
+    }
+    
+    tryCatch({
+      # Check table schema
+      schema_query <- paste("PRAGMA table_info(", table_name, ")")
+      schema <- DBI::dbGetQuery(con, schema_query)
+      
+      # Find YEAR column (case-insensitive)
+      year_idx <- grep("^year$", schema$name, ignore.case = TRUE)
+      
+      if (length(year_idx) == 0) {
+        # No YEAR column in this table
+        no_year <- no_year + 1
+        next
+      }
+      
+      year_col_info <- schema[year_idx[1], ]
+      current_type <- toupper(year_col_info$type)
+      
+      if (current_type == "INTEGER") {
+        # Already INTEGER, nothing to do
+        already_integer <- already_integer + 1
+        next
+      }
+      
+      if (current_type == "DOUBLE" || current_type == "REAL" || 
+          current_type == "FLOAT" || current_type == "NUMERIC") {
+        # Need to convert to INTEGER
+        
+        # DuckDB ALTER TABLE syntax to change column type
+        alter_query <- sprintf(
+          "ALTER TABLE %s ALTER COLUMN YEAR TYPE INTEGER",
+          table_name
+        )
+        
+        DBI::dbExecute(con, alter_query)
+        
+        converted <- converted + 1
+        
+        if (verbose && converted <= 5) {
+          message("  ✓ Converted ", table_name, ": ", current_type, " → INTEGER")
+        }
+      } else {
+        # Unexpected type
+        if (verbose) {
+          message("  ⚠ Unexpected YEAR type in ", table_name, ": ", current_type)
+        }
+      }
+      
+    }, error = function(e) {
+      if (verbose) {
+        message("  Error processing ", table_name, ": ", e$message)
+      }
+      errors <<- errors + 1
+    })
+  }
+  
+  if (verbose) {
+    message("\nYEAR column type conversion complete:")
+    message("  Tables converted (DOUBLE → INTEGER): ", converted)
+    message("  Tables already INTEGER: ", already_integer)
+    message("  Tables without YEAR column: ", no_year)
+    message("  Errors: ", errors)
+  }
+  
+  invisible(list(
+    total = length(tables),
+    converted = converted,
+    already_integer = already_integer,
+    no_year = no_year,
+    errors = errors
+  ))
+}

@@ -547,14 +547,20 @@ check_data_types <- function(table_name, db_connection) {
   
   for (i in seq_len(nrow(schema))) {
     col_name <- schema$name[i]
-    col_type <- schema$type[i]
+    col_type <- toupper(schema$type[i])  # Normalize to uppercase
     
     # Check expected types for known IPEDS columns
     expected_type <- get_expected_ipeds_type(col_name)
     
-    if (!is.null(expected_type) && !grepl(expected_type, col_type, ignore.case = TRUE)) {
-      type_issues <- type_issues + 1
-      details <- c(details, paste(col_name, ":", col_type, "expected", expected_type))
+    if (!is.null(expected_type)) {
+      # Normalize types for comparison - VARCHAR and TEXT are equivalent
+      normalized_col_type <- normalize_sql_type(col_type)
+      normalized_expected <- normalize_sql_type(expected_type)
+      
+      if (normalized_col_type != normalized_expected) {
+        type_issues <- type_issues + 1
+        details <- c(details, paste(col_name, ":", col_type, "expected", expected_type))
+      }
     }
   }
   
@@ -568,6 +574,30 @@ check_data_types <- function(table_name, db_connection) {
     details = paste(details, collapse = "; "),
     stringsAsFactors = FALSE
   )
+}
+
+#' Normalize SQL type names for comparison
+#' @param type_name SQL type name
+#' @return Normalized type name
+normalize_sql_type <- function(type_name) {
+  type_upper <- toupper(type_name)
+  
+  # Treat VARCHAR and TEXT as equivalent (they are in DuckDB)
+  if (type_upper %in% c("VARCHAR", "TEXT", "CHAR", "CHARACTER")) {
+    return("TEXT")
+  }
+  
+  # Treat various numeric types as equivalent to their base type
+  if (type_upper %in% c("INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT")) {
+    return("INTEGER")
+  }
+  
+  if (type_upper %in% c("DOUBLE", "REAL", "FLOAT", "NUMERIC", "DECIMAL")) {
+    return("DOUBLE")
+  }
+  
+  # Return as-is for other types
+  return(type_upper)
 }
 
 #' Get expected data type for known IPEDS columns
