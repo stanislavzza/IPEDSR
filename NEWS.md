@@ -68,12 +68,14 @@ This release includes 9 critical bug fixes and several API improvements that sig
   2. Used `full_join()` instead of `bind_rows()` → wrong data accumulation
   3. Used wrong variable (`df` vs `out`) → incorrect filtering
   4. No duplicate handling → `tidyr::spread()` failure
+  5. Noisy warnings about NA coercion → console clutter
 - **Fix:** 
   - Added explicit `by` parameters to joins (eliminates messages)
   - Changed `full_join()` to `bind_rows()` (correct stacking)
   - Fixed variable reference (correct filtering)
   - Added `distinct()` before `spread()` (handles duplicates)
-- **Impact:** Function now works correctly with clean output
+  - Wrapped `as.integer()` in `suppressWarnings()` (expected NAs in IPEDS data)
+- **Impact:** Function now works correctly with clean, quiet output
 
 ---
 

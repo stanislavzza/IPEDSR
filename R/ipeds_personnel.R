@@ -74,7 +74,8 @@ get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
       dplyr::mutate(varTitle = stringr::str_remove(varTitle, " $"), # remove trailing blanks
              Column = paste0(varTitle,":",valueLabel)) %>%
       dplyr::select(UNITID, Row, Column, Value = Codevalue) %>%
-      dplyr::mutate(Value = as.integer(Value))
+      # Suppress warnings about NAs - this is expected for missing/invalid data
+      dplyr::mutate(Value = suppressWarnings(as.integer(Value)))
 
     # combine it all - specify join keys to avoid messages and ensure correct joins
     df <- df1 %>%

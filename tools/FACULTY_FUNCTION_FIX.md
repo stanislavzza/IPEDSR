@@ -142,6 +142,21 @@ out %>%
 
 **Impact:** Eliminates duplicate keys, allows spread to succeed ✅
 
+#### 5. Suppressed Expected Warnings (Line 77)
+**Before:**
+```r
+dplyr::mutate(Value = as.integer(Value))
+# Warning: NAs introduced by coercion (repeated multiple times)
+```
+
+**After:**
+```r
+# Suppress warnings about NAs - this is expected for missing/invalid data
+dplyr::mutate(Value = suppressWarnings(as.integer(Value)))
+```
+
+**Impact:** Clean output without spurious warnings ✅
+
 ---
 
 ## Testing
@@ -158,8 +173,13 @@ get_faculty()
 ```r
 library(IPEDSR)
 result <- get_faculty()
-# Clean output, no messages
+# Clean output - no messages, no warnings
 head(result)
+# # A tibble: 6 × 36
+#   UNITID   Row Rank  Tenure  Year American Indian...
+#    <int> <int> <chr> <chr>  <dbl>              <int>
+# 1 218070     1 All … All f…  2011                  0
+# ...
 # Returns properly formatted faculty data ✅
 ```
 
@@ -255,6 +275,7 @@ The explicit style is:
 
 | Line | Issue | Fix | Status |
 |------|-------|-----|--------|
+| 77 | NA coercion warnings | Wrapped `as.integer()` in `suppressWarnings()` | ✅ Fixed |
 | 80-82 | Implicit joins causing messages | Added explicit `by` parameters | ✅ Fixed |
 | 88 | Wrong join type for stacking data | Changed `full_join()` to `bind_rows()` | ✅ Fixed |
 | 94 | Wrong variable used for filtering | Changed `df` to `out` | ✅ Fixed |
