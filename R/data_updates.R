@@ -512,7 +512,8 @@ process_data_files_new <- function(data_files, downloads_dir, con, force_downloa
     }
     
     # Import to database if not already there
-    table_name <- gsub("\\.zip$", "", filename, ignore.case = TRUE)
+    # Standardize to lowercase for consistency (older IPEDS tables are lowercase)
+    table_name <- tolower(gsub("\\.zip$", "", filename, ignore.case = TRUE))
     if (!table_exists_in_db_new(con, table_name)) {
       if (verbose) message("    Importing data table: ", table_name)
       
@@ -1350,6 +1351,154 @@ convert_year_to_integer <- function(tables = NULL, verbose = TRUE) {
     converted = converted,
     already_integer = already_integer,
     no_year = no_year,
+    errors = errors
+  ))
+}
+
+#' Standardize table names to lowercase
+#'
+#' This function renames all uppercase or mixed-case table names to lowercase
+#' to maintain consistency across the database. Historically, IPEDS tables
+#' used lowercase names, but recent years have used uppercase. This function
+#' standardizes everything to lowercase.
+#'
+#' @param tables Character vector of table names to process. If NULL (default),
+#'   processes all tables in the database that contain uppercase letters.
+#' @param verbose Logical indicating whether to print progress messages.
+#'   Default is TRUE.
+#'
+#' @return Invisibly returns a list with components:
+#'   \item{total}{Total number of tables checked}
+#'   \item{renamed}{Number of tables that were renamed to lowercase}
+#'   \item{already_lowercase}{Number of tables already in lowercase}
+#'   \item{errors}{Number of tables that encountered errors}
+#'
+#' @details
+#' The function uses DuckDB's table renaming to change table names in place.
+#' This is safe and efficient. The operation is idempotent (can be run multiple
+#' times safely) as it only processes tables that contain uppercase letters.
+#'
+#' Common tables that will be affected:
+#' \itemize{
+#'   \item HD2023, HD2024 → hd2023, hd2024
+#'   \item IC2023_* tables → ic2023_* tables
+#'   \item Any recently imported tables with uppercase letters
+#' }
+#'
+#' Before running this function on a production database, it's recommended
+#' to create a backup using \code{ipeds_data_manager("backup")}.
+#'
+#' @examples
+#' \dontrun{
+#' # Standardize all table names to lowercase
+#' standardize_table_names_to_lowercase()
+#'
+#' # Standardize only specific tables
+#' standardize_table_names_to_lowercase(tables = c("HD2023", "HD2024"))
+#'
+#' # Run without progress messages
+#' standardize_table_names_to_lowercase(verbose = FALSE)
+#' }
+#'
+#' @export
+standardize_table_names_to_lowercase <- function(tables = NULL, verbose = TRUE) {
+  
+  con <- ensure_connection()
+  
+  # Get list of tables to process
+  if (is.null(tables)) {
+    all_tables <- DBI::dbListTables(con)
+    # Only process tables that have uppercase letters
+    tables <- all_tables[grepl("[A-Z]", all_tables)]
+  }
+  
+  if (length(tables) == 0) {
+    if (verbose) {
+      message("No tables with uppercase letters found. Database already standardized!")
+    }
+    return(invisible(list(
+      total = 0,
+      renamed = 0,
+      already_lowercase = 0,
+      errors = 0
+    )))
+  }
+  
+  if (verbose) {
+    message("Standardizing ", length(tables), " table names to lowercase...")
+  }
+  
+  renamed <- 0
+  already_lowercase <- 0
+  errors <- 0
+  
+  for (i in seq_along(tables)) {
+    table_name <- tables[i]
+    
+    if (verbose && (i == 1 || i == length(tables) || i %% 25 == 0)) {
+      message("Processing table ", i, "/", length(tables), ": ", table_name)
+    }
+    
+    tryCatch({
+      # Check if table name has any uppercase letters
+      if (!grepl("[A-Z]", table_name)) {
+        already_lowercase <- already_lowercase + 1
+        next
+      }
+      
+      # Generate lowercase name
+      new_name <- tolower(table_name)
+      
+      # Check if a table with the lowercase name already exists
+      all_current_tables <- DBI::dbListTables(con)
+      if (new_name %in% all_current_tables && new_name != table_name) {
+        if (verbose) {
+          message("  ⚠ Cannot rename ", table_name, " → ", new_name, 
+                  " (target already exists)")
+        }
+        errors <- errors + 1
+        next
+      }
+      
+      # Rename the table
+      rename_query <- sprintf(
+        "ALTER TABLE %s RENAME TO %s",
+        table_name,
+        new_name
+      )
+      
+      DBI::dbExecute(con, rename_query)
+      
+      renamed <- renamed + 1
+      
+      if (verbose && renamed <= 10) {
+        message("  ✓ Renamed: ", table_name, " → ", new_name)
+      }
+      
+    }, error = function(e) {
+      if (verbose) {
+        message("  Error renaming ", table_name, ": ", e$message)
+      }
+      errors <<- errors + 1
+    })
+  }
+  
+  if (verbose) {
+    message("\nTable name standardization complete:")
+    message("  Tables renamed to lowercase: ", renamed)
+    message("  Tables already lowercase: ", already_lowercase)
+    message("  Errors: ", errors)
+    
+    if (renamed > 0) {
+      message("\n✓ Database now uses consistent lowercase table names!")
+      message("  Functions like get_characteristics() should now work correctly.")
+    }
+  }
+  
+  invisible(list(
+    total = length(tables),
+    renamed = renamed,
+    already_lowercase = already_lowercase,
     errors = errors
   ))
 }
