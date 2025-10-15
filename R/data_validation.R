@@ -954,9 +954,9 @@ check_statistical_outliers <- function(table_name, db_connection) {
 #' @param validation_results Results from validation
 print_validation_summary <- function(validation_results) {
   
-  cat("\n" , "=" , rep("=", 50), "=", "\n")
+  cat("\n" , "=" , rep("=", 30), "=", "\n")
   cat("IPEDS DATA VALIDATION SUMMARY\n")
-  cat("=" , rep("=", 50), "=", "\n\n")
+  cat("=" , rep("=", 30), "=", "\n\n")
   
   summary <- validation_results$summary
   
