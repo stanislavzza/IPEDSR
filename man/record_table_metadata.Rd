@@ -2,7 +2,7 @@
 % Please edit documentation in R/data_versioning.R
 \name{record_table_metadata}
 \alias{record_table_metadata}
-\title{Initialize version tracking with current database contents}
+\title{Record metadata for a newly imported table}
 \usage{
 record_table_metadata(table_name, file_info, db_connection = NULL)
 }
@@ -15,9 +15,7 @@ record_table_metadata(table_name, file_info, db_connection = NULL)
 }
 \value{
 TRUE if successful
-
-TRUE if successful
 }
 \description{
-Initialize version tracking with current database contents
+Record metadata for a newly imported table
 }

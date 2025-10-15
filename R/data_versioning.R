@@ -75,7 +75,12 @@ initialize_version_tracking <- function(db_connection = NULL) {
 #' Initialize version tracking with current database contents
 #' @param db_connection Database connection (will use write-capable connection)
 #' @return TRUE if successful
-#' @export
+#' @keywords internal
+initialize_version_tracking_current <- function(db_connection = NULL) {
+  # This function appears to be incomplete in the original code
+  # Placeholder for now
+  return(TRUE)
+}
 
 #' Record metadata for a newly imported table
 #' @param table_name Name of the table
