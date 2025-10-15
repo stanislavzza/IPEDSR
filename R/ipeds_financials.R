@@ -1,8 +1,13 @@
 #' Get financials
-#' @param UNITIDs vector of UNITIDs to retrieve
+#' @param UNITIDs vector of UNITIDs to retrieve. If NULL, uses configured default_unitid.
 #' @return Dataframe with endowment, revenue and other statistics
 #' @export
 get_finances <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # find all the tables
@@ -106,10 +111,15 @@ get_finances <- function(UNITIDs = NULL){
 }
 
 #' Get IPEDS tuition
-#' @param UNITIDs IPEDS school IDs. If NULL, gets everything
+#' @param UNITIDs IPEDS school IDs. If NULL, uses configured default_unitid.
 #' @return A dataframe with UNITID, Year, Tuition, Fees, RoomBoard for undergrad
 #' @export
 get_tuition <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # find all the tables

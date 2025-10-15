@@ -1,13 +1,17 @@
 #' Get completions by school and CIP
 #' @param years The years of data to retrieve; the table name minus one. Years before 2007 are invalid.
-#' @param UNITIDs if NULL, everything, otherwise use the array of UNITIDs
+#' @param UNITIDs if NULL, uses configured default_unitid
 #' @param awlevel Award level, defaults to "05" for Bachelors
 #' @return a dataframe with institutional characteristics, year, and graduates by CIP
 #' @details The CIP code is 2-digit for economy of results
 #' @export
 get_ipeds_completions <- function(years, UNITIDs = NULL, awlevel = "05"){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   # get grads
-
   grads <- get_cips(UNITIDs, years) %>%
     dplyr::filter(MAJORNUM == 1) %>%
     dplyr::inner_join(get_cipcodes(digits = 2), by = "CIPCODE") %>%
@@ -20,7 +24,7 @@ get_ipeds_completions <- function(years, UNITIDs = NULL, awlevel = "05"){
 
 #' Get grad rates
 #' @param idbc Database connector
-#' @param UNITIDs Array of identifiers, or NULL for all schools
+#' @param UNITIDs Array of identifiers, or NULL. If NULL, uses configured default_unitid.
 #' @return Dataframe with year and cohort and cohort size, unitid, 6 year cumulative grad rate,
 #' and 4-, 5-, and 6- year rates.
 #' @details The four, five, and six year rates are all for the same cohort, and
@@ -28,6 +32,11 @@ get_ipeds_completions <- function(years, UNITIDs = NULL, awlevel = "05"){
 #' means four or less years, but five and six mean exactly those many years.
 #' @export
 get_grad_rates <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
   
   nan_to_na <- function(x){
@@ -105,12 +114,17 @@ get_grad_rates <- function(UNITIDs = NULL){
 #' @description Get four- and six-year graduation rates for cohort undergraduates for
 #' race and gender
 #' @param idbc Database connector
-#' @param UNITIDs Array of identifiers
+#' @param UNITIDs Array of identifiers, or NULL. If NULL, uses configured default_unitid.
 #' @return Long dataframe with year, unitid, demographic categories, cohort sizes,
 #' and numbers of grad at 100 and 150%. Four and six year rates are generated.
 #' Only returns data after 2007. Rates are as of August 31 of the identified year.
 #' @export
 get_grad_demo_rates <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
   
   nan_to_na <- function(x){
@@ -170,12 +184,17 @@ get_grad_demo_rates <- function(UNITIDs = NULL){
 #' @description Get six-year graduation rates for cohort undergraduates for
 #' Pell and Stafford students.
 #' @param idbc Database connector
-#' @param UNITIDs Array of identifiers
+#' @param UNITIDs Array of identifiers, or NULL. If NULL, uses configured default_unitid.
 #' @return Dataframe with year, unitid, and four year rates having column names
 #' that identify the demographic (total means everyone). Only returns data after
 #' 2015. Rates are as of August 31 of the identified year.
 #' @export
 get_grad_pell_rates <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
   
   nan_to_na <- function(x){

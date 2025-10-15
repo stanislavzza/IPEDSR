@@ -1,11 +1,15 @@
 #' Get cohort retention and graduation history
-#' @param UNITIDs an array of IDs or NULL for everything (default)
+#' @param UNITIDs an array of IDs or NULL. If NULL, uses configured default_unitid.
 #' @return Cohort year and size, and rates and numbers of returning and
 #' graduating students.
 #' @details This report omits Year because it's keyed on Chort.
 #' The columns Yr1 through Yr6 estimate enrollment.
 #' @export
 get_cohort_stats <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
 
   ret  <- get_retention(UNITIDs) %>%
           dplyr::select(-Year) %>%
@@ -65,6 +69,11 @@ get_cohort_stats <- function(UNITIDs = NULL){
 #' @return A dataframe with UNITID, Year, Total, Men, Women, White, Black, Hispanic, and NRAlien.
 #' @export
 ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # student codes
@@ -179,6 +188,11 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 #' later. A cohort column is included to make this clear.
 #' @export
 get_retention <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
   # find all the tables
   # tnames <- odbc::dbListTables(idbc, table_name = "ef20__D")
@@ -235,9 +249,14 @@ get_retention <- function(UNITIDs = NULL){
 
 #' Admit Funnel
 #' @param idbc database connector
-#' @param UNITIDs optional list of UNITIDs to filter to
+#' @param UNITIDs optional list of UNITIDs to filter to. If NULL, uses configured default_unitid.
 #' @export
 get_admit_funnel <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # output data
@@ -390,10 +409,14 @@ get_admit_funnel <- function(UNITIDs = NULL){
 
 #' Get financial aid
 #' @param idbc IPEDS database connection
-#' @param UNITIDs Optional list of UNITIDs to filter to
+#' @param UNITIDs Optional list of UNITIDs to filter to. If NULL, uses configured default_unitid.
 #' @export
 
 get_fa_info <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
   idbc <- ensure_connection()
   # input should be a sfa file, eg.
   # df <- read_csv("data/IPEDS/2017/sfa1617.csv", guess_max = 5000) %>%

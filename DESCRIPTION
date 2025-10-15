@@ -25,7 +25,8 @@ Imports:
     tibble,
     tidyr,
     tools,
-    utils
+    utils,
+    yaml
 Suggests:
     testthat,
     knitr,

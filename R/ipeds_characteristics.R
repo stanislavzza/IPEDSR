@@ -1,12 +1,19 @@
 #' Get institutional characteristics for a single year
 #' @param year The year to get, or NULL (default) for the most recent year
-#' @param UNITIDs optional array of UNITIDs to filter to
+#' @param UNITIDs optional array of UNITIDs to filter to. If NULL, uses configured default_unitid.
 #' @param labels if TRUE, replace column names and cell entries with their
 #' labels. If FALSE, return the raw data.
 #' @return a dataframe with institutional characteristics
 #' @export
 #' @details Automatically manages database connection and setup.
+#' If UNITIDs is not provided, the function will use the default_unitid from your configuration.
+#' Set this with: set_ipedsr_config(default_unitid = YOUR_UNITID)
 get_characteristics <- function(year = NULL, UNITIDs = NULL, labels = TRUE){
+  
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
 
   # find all the tables
   tnames <- my_dbListTables(search_string = "^HD\\d{4}$")

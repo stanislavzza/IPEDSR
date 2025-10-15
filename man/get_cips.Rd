@@ -7,7 +7,7 @@
 get_cips(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "05")
 }
 \arguments{
-\item{UNITIDs}{UNITIDs, or NULL for everything}
+\item{UNITIDs}{UNITIDs, or NULL. If NULL, uses configured default_unitid.}
 
 \item{years}{The years of data to retrieve; the table name minus one. Years before 2007 are invalid.}
 

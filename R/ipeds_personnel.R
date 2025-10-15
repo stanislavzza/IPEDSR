@@ -1,11 +1,16 @@
 #' Get IPEDS faculty counts
-#' @param UNITIDs IPEDS school IDs. If NULL, gets everything
+#' @param UNITIDs IPEDS school IDs. If NULL, uses configured default_unitid.
 #' @param before_2011 If true, includes old data
 #' @return A dataframe with UNITID, Year, Tuition, Fees, RoomBoard for undergrad
 #' @details The faculty status codes for rank and tenure were different before 2011, making
 #' comparisons more difficult. By default, those records are omitted.
 #' @export
 get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # find all the tables
@@ -159,11 +164,16 @@ get_employees <- function(UNITIDs = 218070){
 }
 
 #' Faculty salaries
-#' @param UNITIDs an array of UNITIDs
+#' @param UNITIDs an array of UNITIDs, or NULL. If NULL, uses configured default_unitid.
 #' @param years an array of years to pull
 #' @return a dataframe with faculty salaries by year and UNITID
 #' @export
 get_ipeds_faculty_salaries <- function(UNITIDs = NULL, years = NULL) {
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   ranks <- data.frame(ARANK = 1:7,

@@ -7,7 +7,7 @@
 get_fa_info(UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{Optional list of UNITIDs to filter to}
+\item{UNITIDs}{Optional list of UNITIDs to filter to. If NULL, uses configured default_unitid.}
 
 \item{idbc}{IPEDS database connection}
 }

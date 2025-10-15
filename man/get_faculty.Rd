@@ -7,7 +7,7 @@
 get_faculty(UNITIDs = NULL, before_2011 = FALSE)
 }
 \arguments{
-\item{UNITIDs}{IPEDS school IDs. If NULL, gets everything}
+\item{UNITIDs}{IPEDS school IDs. If NULL, uses configured default_unitid.}
 
 \item{before_2011}{If true, includes old data}
 }

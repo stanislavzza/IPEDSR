@@ -9,7 +9,7 @@ get_ipeds_completions(years, UNITIDs = NULL, awlevel = "05")
 \arguments{
 \item{years}{The years of data to retrieve; the table name minus one. Years before 2007 are invalid.}
 
-\item{UNITIDs}{if NULL, everything, otherwise use the array of UNITIDs}
+\item{UNITIDs}{if NULL, uses configured default_unitid}
 
 \item{awlevel}{Award level, defaults to "05" for Bachelors}
 }

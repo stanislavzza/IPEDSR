@@ -7,7 +7,7 @@
 get_tuition(UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{IPEDS school IDs. If NULL, gets everything}
+\item{UNITIDs}{IPEDS school IDs. If NULL, uses configured default_unitid.}
 }
 \value{
 A dataframe with UNITID, Year, Tuition, Fees, RoomBoard for undergrad

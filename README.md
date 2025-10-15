@@ -16,6 +16,7 @@ IPEDSR provides institutional researchers with a robust, production-ready data m
   - Character cleaning for database compatibility
 - **Efficient File Processing**: Intelligent filtering excludes redundant statistical software files
 - **Consolidated Dictionaries**: Unified data dictionaries across all years and surveys
+- **User Configuration**: Set default institution for streamlined daily workflows
 
 #### **Comprehensive Data Access**
 - **20+ Years of Data**: IPEDS data from 2004-present with 958+ tables
@@ -43,30 +44,6 @@ devtools::install_github("stanislavzza/IPEDSR")
 
 ### Dependencies
 
-The package will automatically install required dependencies:
-- DBI
-- duckdb
-- dplyr
-- magrittr
-- rappdirs
-- stringr
-- tibble
-- tidyr
-
-## Installation
-
-### From GitHub (Recommended)
-
-```r
-# Install devtools if you haven't already
-install.packages("devtools")
-
-# Install IPEDSR from GitHub
-devtools::install_github("stanislavzza/IPEDSR")
-```
-
-### Dependencies
-
 The package automatically installs required dependencies:
 - **Core**: DBI, duckdb, dplyr, magrittr, tibble, tidyr, stringr
 - **Web**: rvest, httr, xml2 (for automated data updates)
@@ -74,12 +51,31 @@ The package automatically installs required dependencies:
 
 ## 🎯 Quick Start Guide
 
-### 1. Basic Data Access (Traditional Workflow)
+### 1. Set Your Default Institution (Recommended)
 
 ```r
 library(IPEDSR)
 
-# Get institutional characteristics for Furman University (2023)
+# One-time setup: Set your default institution
+set_ipedsr_config(default_unitid = 218070)  # e.g., Furman University
+
+# Now functions use your institution by default
+furman_chars <- get_characteristics(year = 2023)  # No UNITID needed!
+finances <- get_finances()                        # Uses your default
+grad_rates <- get_grad_rates()                    # Always ready
+
+# Override when needed for peer comparisons
+peer_data <- get_finances(UNITIDs = c(218070, 139755, 190150))
+```
+
+See [CONFIGURATION_GUIDE.md](CONFIGURATION_GUIDE.md) for complete details.
+
+### 2. Basic Data Access (Traditional Workflow)
+
+```r
+library(IPEDSR)
+
+# Explicit UNITID specification (works without configuration)
 furman_chars <- get_characteristics(year = 2023, UNITIDs = 218070)
 
 # Get financial data for multiple institutions
@@ -89,7 +85,7 @@ finances <- get_finances(UNITIDs = c(218070, 139755, 190150))
 grad_rates <- get_grad_rates(UNITIDs = 218070)
 ```
 
-### 2. Modern Data Management (Recommended)
+### 3. Modern Data Management
 
 ```r
 # Update to latest IPEDS data (handles all quality issues automatically)
@@ -105,7 +101,7 @@ check_ipeds_updates()
 ipeds_data_manager("status")
 ```
 
-### 3. Get Help and Learn
+### 4. Get Help and Learn
 
 ```r
 # Function-specific help

@@ -7,7 +7,7 @@
 get_admit_funnel(UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{optional list of UNITIDs to filter to}
+\item{UNITIDs}{optional list of UNITIDs to filter to. If NULL, uses configured default_unitid.}
 
 \item{idbc}{database connector}
 }

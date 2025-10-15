@@ -7,7 +7,7 @@
 get_cohort_stats(UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{an array of IDs or NULL for everything (default)}
+\item{UNITIDs}{an array of IDs or NULL. If NULL, uses configured default_unitid.}
 }
 \value{
 Cohort year and size, and rates and numbers of returning and

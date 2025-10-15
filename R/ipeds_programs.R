@@ -1,7 +1,7 @@
 #' Get CIPS
 #' @description Given institutional IDs, get completions by year and CIP for each
 #' @param idbc Database connector
-#' @param UNITIDs UNITIDs, or NULL for everything
+#' @param UNITIDs UNITIDs, or NULL. If NULL, uses configured default_unitid.
 #' @param years The years of data to retrieve; the table name minus one. Years before 2007 are invalid.
 #' @param cip_codes Provide a vector of codes to search for. This can be two-digit, four, or six. Note
 #' code "99" is all degrees, which is filtered out if you leave cip_codes NULL.
@@ -9,6 +9,11 @@
 #' @return A data frame with UNITID, CIPCODE, MAJORNUM, N (the count of completions), and Year
 #' @export
 get_cips <- function(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "05"){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # find all the tables
@@ -106,6 +111,11 @@ get_cipcodes <- function(digits = NULL){
 #' @export
 
 get_cip2_counts <- function(awlevel = "05", UNITIDs = NULL, first_only = FALSE){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # find all the tables

@@ -7,7 +7,7 @@
 get_ipeds_faculty_salaries(UNITIDs = NULL, years = NULL)
 }
 \arguments{
-\item{UNITIDs}{an array of UNITIDs}
+\item{UNITIDs}{an array of UNITIDs, or NULL. If NULL, uses configured default_unitid.}
 
 \item{years}{an array of years to pull}
 }

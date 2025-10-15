@@ -9,7 +9,7 @@ get_characteristics(year = NULL, UNITIDs = NULL, labels = TRUE)
 \arguments{
 \item{year}{The year to get, or NULL (default) for the most recent year}
 
-\item{UNITIDs}{optional array of UNITIDs to filter to}
+\item{UNITIDs}{optional array of UNITIDs to filter to. If NULL, uses configured default_unitid.}
 
 \item{labels}{if TRUE, replace column names and cell entries with their
 labels. If FALSE, return the raw data.}
@@ -22,4 +22,6 @@ Get institutional characteristics for a single year
 }
 \details{
 Automatically manages database connection and setup.
+If UNITIDs is not provided, the function will use the default_unitid from your configuration.
+Set this with: set_ipedsr_config(default_unitid = YOUR_UNITID)
 }

@@ -7,7 +7,7 @@
 get_finances(UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{vector of UNITIDs to retrieve}
+\item{UNITIDs}{vector of UNITIDs to retrieve. If NULL, uses configured default_unitid.}
 }
 \value{
 Dataframe with endowment, revenue and other statistics

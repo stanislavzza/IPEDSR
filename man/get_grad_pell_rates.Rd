@@ -7,7 +7,7 @@
 get_grad_pell_rates(UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{Array of identifiers}
+\item{UNITIDs}{Array of identifiers, or NULL. If NULL, uses configured default_unitid.}
 
 \item{idbc}{Database connector}
 }
