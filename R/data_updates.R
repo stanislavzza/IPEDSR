@@ -572,6 +572,85 @@ table_exists_in_db_new <- function(con, table_name) {
   return(table_name %in% tables)
 }
 
+#' Extract year from IPEDS table name
+#' @param table_name Name of the table
+#' @return Integer year or NA if no year found
+extract_year_from_table_name <- function(table_name) {
+  # Common IPEDS year patterns:
+  # - Full year: ADM2022, C2023_A
+  # - Two-digit year range: sfa1819_p1, ef2010d
+  # - Four-digit year: EFFY2022
+  
+  # Try to find 4-digit year (2000-2099)
+  year_match <- regmatches(table_name, regexpr("20[0-9]{2}", table_name))
+  if (length(year_match) > 0) {
+    return(as.integer(year_match[1]))
+  }
+  
+  # Try two-digit year patterns like "1819" or "ef19" (19 = 2019)
+  # Look for patterns where two consecutive 2-digit numbers appear
+  two_digit_match <- regmatches(table_name, regexpr("([0-9]{2})([0-9]{2})", table_name))
+  if (length(two_digit_match) > 0) {
+    # Extract the second year from range like "1819" -> 19
+    year_str <- substr(two_digit_match[1], 3, 4)
+    year_num <- as.integer(year_str)
+    # Convert 2-digit year to 4-digit (assume 2000s)
+    return(2000 + year_num)
+  }
+  
+  # Try single two-digit year at end like "ef19"
+  single_two_digit <- regmatches(table_name, regexpr("[0-9]{2}$", table_name))
+  if (length(single_two_digit) > 0) {
+    year_num <- as.integer(single_two_digit[1])
+    # Convert 2-digit year to 4-digit (assume 2000s)
+    return(2000 + year_num)
+  }
+  
+  return(NA_integer_)
+}
+
+#' Add year column to data frame if not present
+#' @param data Data frame
+#' @param table_name Name of the table
+#' @return Data frame with YEAR column added
+add_year_column <- function(data, table_name) {
+  # Check if data already has a year column (case-insensitive)
+  year_cols <- grep("^year$", names(data), ignore.case = TRUE, value = TRUE)
+  
+  if (length(year_cols) > 0) {
+    # Standardize to uppercase YEAR
+    if (year_cols[1] != "YEAR") {
+      names(data)[names(data) == year_cols[1]] <- "YEAR"
+    }
+    return(data)
+  }
+  
+  # Extract year from table name
+  year <- extract_year_from_table_name(table_name)
+  
+  if (!is.na(year)) {
+    # Add YEAR as the second column (after UNITID if it exists)
+    if ("UNITID" %in% names(data)) {
+      # Insert YEAR after UNITID
+      unitid_pos <- which(names(data) == "UNITID")
+      if (unitid_pos == ncol(data)) {
+        # UNITID is last column, just add YEAR at end
+        data$YEAR <- year
+      } else {
+        # Insert YEAR after UNITID
+        data <- data[, c(1:unitid_pos, ncol(data) + 1, (unitid_pos + 1):ncol(data))]
+        data[, unitid_pos + 1] <- year
+        names(data)[unitid_pos + 1] <- "YEAR"
+      }
+    } else {
+      # No UNITID, add YEAR as first column
+      data <- cbind(YEAR = year, data)
+    }
+  }
+  
+  return(data)
+}
+
 #' Import a data file to database
 import_data_file_new <- function(file_path, table_name, con, verbose) {
   
@@ -664,6 +743,9 @@ import_data_file_new <- function(file_path, table_name, con, verbose) {
             data[[col]] <- gsub("[^\x01-\x7F]", "", data[[col]])
           }
         }
+        
+        # Add YEAR column if not present (extract from table name)
+        data <- add_year_column(data, table_name)
       }
       
       DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
@@ -681,6 +763,9 @@ import_data_file_new <- function(file_path, table_name, con, verbose) {
               data[[col]] <- gsub("[\001-\010\013-\014\016-\037\177]", "", data[[col]])
             }
           }
+          
+          # Add YEAR column if not present (extract from table name)
+          data <- add_year_column(data, table_name)
           
           # Try writing again
           DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)

@@ -326,9 +326,24 @@ check_unitid_validation <- function(table_name, db_connection) {
 #' @return Check result data frame
 check_year_consistency <- function(table_name, db_connection) {
   
-  # Extract year from table name if present
-  year_pattern <- "20[0-9]{2}"
-  table_year <- regmatches(table_name, regexpr(year_pattern, table_name))
+  # Extract year from table name if present (try both 4-digit and 2-digit patterns)
+  year_pattern_4digit <- "20[0-9]{2}"
+  table_year <- regmatches(table_name, regexpr(year_pattern_4digit, table_name))
+  
+  # If no 4-digit year, try 2-digit year patterns
+  if (length(table_year) == 0) {
+    year_pattern_2digit <- "([0-9]{2})([0-9]{2})|[0-9]{2}$"
+    year_match <- regmatches(table_name, regexpr(year_pattern_2digit, table_name))
+    if (length(year_match) > 0) {
+      # Extract last 2 digits and convert to full year
+      if (nchar(year_match[1]) == 4) {
+        year_str <- substr(year_match[1], 3, 4)
+      } else {
+        year_str <- year_match[1]
+      }
+      table_year <- paste0("20", year_str)
+    }
+  }
   
   if (length(table_year) == 0) {
     return(data.frame(
@@ -351,9 +366,9 @@ check_year_consistency <- function(table_name, db_connection) {
     return(data.frame(
       check_name = "year_consistency",
       check_type = "logical",
-      status = "warning",
-      message = "Table name contains year but no year columns found",
-      details = paste("Table year:", table_year),
+      status = "fail",
+      message = "Table name contains year but YEAR column is missing",
+      details = paste("Expected year:", table_year, "- Run update_data() to add YEAR columns"),
       stringsAsFactors = FALSE
     ))
   }
