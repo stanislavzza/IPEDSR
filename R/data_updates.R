@@ -1149,6 +1149,15 @@ add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
       # (DuckDB doesn't support ALTER TABLE ADD COLUMN at specific position)
       data <- DBI::dbReadTable(con, table_name)
       
+      # Skip empty tables
+      if (nrow(data) == 0) {
+        if (verbose) {
+          message("  Skipping empty table: ", table_name)
+        }
+        skipped <- skipped + 1
+        next
+      }
+      
       # Check if we should add after UNITID or at the beginning
       has_unitid <- "UNITID" %in% names(data)
       
@@ -1157,14 +1166,14 @@ add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
         unitid_pos <- which(names(data) == "UNITID")[1]
         
         if (unitid_pos < ncol(data)) {
-          # Create new column order: columns 1 to unitid_pos, then YEAR, then rest
-          col_order <- c(1:unitid_pos, (unitid_pos + 1):ncol(data))
-          data <- data[, col_order]
-          # Insert YEAR column after UNITID position
-          data <- data.frame(
-            data[, 1:unitid_pos],
+          # Insert YEAR column after UNITID - preserve column names properly
+          first_cols <- data[, 1:unitid_pos, drop = FALSE]
+          rest_cols <- data[, (unitid_pos + 1):ncol(data), drop = FALSE]
+          
+          data <- cbind(
+            first_cols,
             YEAR = year,
-            data[, (unitid_pos + 1):ncol(data)],
+            rest_cols,
             stringsAsFactors = FALSE
           )
         } else {
@@ -1173,7 +1182,7 @@ add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
         }
       } else {
         # No UNITID, add YEAR as first column
-        data <- data.frame(YEAR = year, data, stringsAsFactors = FALSE)
+        data <- cbind(YEAR = year, data, stringsAsFactors = FALSE)
       }
       
       DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
