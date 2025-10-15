@@ -1145,31 +1145,38 @@ add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
         next
       }
       
-      # Add YEAR column using SQL ALTER TABLE
-      # First, check if we should add after UNITID or at the beginning
-      has_unitid <- "UNITID" %in% schema$name
+      # Add YEAR column - read table, add column, write back
+      # (DuckDB doesn't support ALTER TABLE ADD COLUMN at specific position)
+      data <- DBI::dbReadTable(con, table_name)
+      
+      # Check if we should add after UNITID or at the beginning
+      has_unitid <- "UNITID" %in% names(data)
       
       if (has_unitid) {
-        # Read table, add column, write back (DuckDB doesn't support ALTER TABLE ADD COLUMN at specific position)
-        data <- DBI::dbReadTable(con, table_name)
-        unitid_pos <- which(names(data) == "UNITID")
-        
         # Insert YEAR after UNITID
+        unitid_pos <- which(names(data) == "UNITID")[1]
+        
         if (unitid_pos < ncol(data)) {
-          data <- data[, c(1:unitid_pos, ncol(data) + 1, (unitid_pos + 1):ncol(data))]
-          data[, unitid_pos + 1] <- year
-          names(data)[unitid_pos + 1] <- "YEAR"
+          # Create new column order: columns 1 to unitid_pos, then YEAR, then rest
+          col_order <- c(1:unitid_pos, (unitid_pos + 1):ncol(data))
+          data <- data[, col_order]
+          # Insert YEAR column after UNITID position
+          data <- data.frame(
+            data[, 1:unitid_pos],
+            YEAR = year,
+            data[, (unitid_pos + 1):ncol(data)],
+            stringsAsFactors = FALSE
+          )
         } else {
+          # UNITID is last column, just add YEAR at end
           data$YEAR <- year
         }
-        
-        DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
       } else {
-        # Add YEAR as first column
-        data <- DBI::dbReadTable(con, table_name)
-        data <- cbind(YEAR = year, data)
-        DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
+        # No UNITID, add YEAR as first column
+        data <- data.frame(YEAR = year, data, stringsAsFactors = FALSE)
       }
+      
+      DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
       
       updated <- updated + 1
       
@@ -1177,7 +1184,7 @@ add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
       if (verbose) {
         message("  Error processing ", table_name, ": ", e$message)
       }
-      errors <- errors + 1
+      errors <<- errors + 1  # Use <<- to assign to parent scope
     })
   }
   
