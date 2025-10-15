@@ -633,19 +633,26 @@ add_year_column <- function(data, table_name) {
     # Add YEAR as the second column (after UNITID if it exists)
     if ("UNITID" %in% names(data)) {
       # Insert YEAR after UNITID
-      unitid_pos <- which(names(data) == "UNITID")
-      if (unitid_pos == ncol(data)) {
+      unitid_pos <- which(names(data) == "UNITID")[1]
+      
+      if (unitid_pos < ncol(data)) {
+        # UNITID is not the last column - insert YEAR after it
+        first_cols <- data[, 1:unitid_pos, drop = FALSE]
+        rest_cols <- data[, (unitid_pos + 1):ncol(data), drop = FALSE]
+        
+        data <- cbind(
+          first_cols,
+          YEAR = year,
+          rest_cols,
+          stringsAsFactors = FALSE
+        )
+      } else {
         # UNITID is last column, just add YEAR at end
         data$YEAR <- year
-      } else {
-        # Insert YEAR after UNITID
-        data <- data[, c(1:unitid_pos, ncol(data) + 1, (unitid_pos + 1):ncol(data))]
-        data[, unitid_pos + 1] <- year
-        names(data)[unitid_pos + 1] <- "YEAR"
       }
     } else {
       # No UNITID, add YEAR as first column
-      data <- cbind(YEAR = year, data)
+      data <- cbind(YEAR = year, data, stringsAsFactors = FALSE)
     }
   }
   
@@ -731,17 +738,20 @@ import_data_file_new <- function(file_path, table_name, con, verbose) {
     
     # Clean data and write to database with error handling
     tryCatch({
-      # Clean character columns to handle Unicode issues
+      # Clean character columns to handle Unicode issues - be aggressive upfront
       if (is.data.frame(data) && nrow(data) > 0) {
         # Find character columns
         char_cols <- sapply(data, is.character)
         if (any(char_cols)) {
           if (verbose) message("        Cleaning character data for Unicode issues...")
           for (col in names(data)[char_cols]) {
-            # Replace problematic characters and ensure valid UTF-8
-            data[[col]] <- iconv(data[[col]], to = "UTF-8", sub = "")
-            # Remove any remaining non-printable characters
-            data[[col]] <- gsub("[^\x01-\x7F]", "", data[[col]])
+            # Use ASCII conversion to avoid Unicode issues in DuckDB
+            # This is more reliable than UTF-8 for IPEDS data
+            data[[col]] <- iconv(data[[col]], to = "ASCII", sub = " ")
+            # Remove control characters and NULL bytes
+            data[[col]] <- gsub("[\001-\010\013-\014\016-\037\177]", "", data[[col]])
+            # Trim whitespace
+            data[[col]] <- trimws(data[[col]])
           }
         }
         
@@ -752,21 +762,24 @@ import_data_file_new <- function(file_path, table_name, con, verbose) {
       DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
     }, error = function(e) {
       if (grepl("unicode|encoding", e$message, ignore.case = TRUE)) {
-        if (verbose) message("        Database Unicode error, applying additional cleaning...")
+        if (verbose) message("        Still getting Unicode error, applying extreme cleaning...")
         
-        # More aggressive cleaning for problematic data
+        # Ultra-aggressive cleaning for extremely problematic data
         if (is.data.frame(data) && nrow(data) > 0) {
           for (col in names(data)) {
             if (is.character(data[[col]])) {
-              # Convert to ASCII only, removing all non-ASCII characters
-              data[[col]] <- iconv(data[[col]], to = "ASCII", sub = "")
-              # Remove any NULL bytes or other problematic characters
-              data[[col]] <- gsub("[\001-\010\013-\014\016-\037\177]", "", data[[col]])
+              # Keep only printable ASCII characters
+              data[[col]] <- gsub("[^[:print:]]", " ", data[[col]])
+              data[[col]] <- gsub("[^\\x20-\\x7E]", " ", data[[col]], perl = TRUE)
+              # Remove extra whitespace
+              data[[col]] <- trimws(gsub("\\s+", " ", data[[col]]))
             }
           }
           
-          # Add YEAR column if not present (extract from table name)
-          data <- add_year_column(data, table_name)
+          # YEAR column should already be added, but check
+          if (!("YEAR" %in% names(data))) {
+            data <- add_year_column(data, table_name)
+          }
           
           # Try writing again
           DBI::dbWriteTable(con, table_name, data, overwrite = TRUE)
@@ -829,8 +842,8 @@ import_year_dictionaries_new <- function(downloads_dir, con, year, verbose) {
     }
   }
   
-  # Create yearly dictionary tables
-  tables_name <- paste0("Tables", year_2digit)
+  # Create yearly dictionary tables (lowercase to match standardization)
+  tables_name <- paste0("tables", year_2digit)
   vartable_name <- paste0("vartable", year_2digit)
   valuesets_name <- paste0("valuesets", year_2digit)
   
@@ -901,7 +914,9 @@ create_tables_for_year_new <- function(con, year, table_name, verbose) {
   year_2digit <- sprintf("%02d", year %% 100)
   all_tables <- DBI::dbListTables(con)
   data_tables <- grep(paste0(".*", year_2digit, "$"), all_tables, value = TRUE)
-  data_tables <- setdiff(data_tables, c(paste0("Tables", year_2digit), 
+  # Exclude metadata tables (case-insensitive since we now use lowercase)
+  data_tables <- setdiff(data_tables, c(paste0("tables", year_2digit),
+                                       paste0("Tables", year_2digit),  # legacy uppercase
                                        paste0("vartable", year_2digit),
                                        paste0("valuesets", year_2digit)))
   
@@ -941,34 +956,68 @@ update_consolidated_dictionaries_new <- function(con, verbose) {
   # Get all Tables, vartable, and valuesets tables
   all_tables <- DBI::dbListTables(con)
   
-  tables_tables <- grep('^Tables[0-9]{2}$', all_tables, value = TRUE)
-  vartable_tables <- grep('^vartable[0-9]{2}$', all_tables, value = TRUE)
-  valuesets_tables <- grep('^valuesets[0-9]{2}$', all_tables, value = TRUE)
+  # Use case-insensitive search since we now standardize to lowercase
+  tables_tables <- grep('^tables[0-9]{2}$', all_tables, value = TRUE, ignore.case = TRUE)
+  vartable_tables <- grep('^vartable[0-9]{2}$', all_tables, value = TRUE, ignore.case = TRUE)
+  valuesets_tables <- grep('^valuesets[0-9]{2}$', all_tables, value = TRUE, ignore.case = TRUE)
   
-  # Recreate Tables_All
+  # Recreate tables_all (lowercase to match standardization)
   if (length(tables_tables) > 0) {
-    if (verbose) message("    Updating Tables_All...")
+    if (verbose) message("    Updating tables_all...")
     
     tables_queries <- c()
     for (table in tables_tables) {
-      year <- gsub("Tables", "", table)
+      year <- gsub("tables", "", table, ignore.case = TRUE)
       year_4digit <- ifelse(as.numeric(year) <= 50, 2000 + as.numeric(year), 1900 + as.numeric(year))
       
+      # Get actual column names for this table
       cols <- DBI::dbListFields(con, table)
-      if (length(cols) <= 10) {
-        # Early format
-        query <- sprintf('SELECT SurveyOrder, SurveyNumber, Survey, YearCoverage, TableName, Tablenumber, TableTitle, Release, "Release date", NULL as F11, NULL as F12, NULL as F13, NULL as F14, NULL as F15, NULL as F16, Description, %d as YEAR FROM %s', year_4digit, table)
+      cols_lower <- tolower(cols)
+      
+      # Check which optional columns exist
+      has_release_date <- any(grepl("^release.?date$", cols, ignore.case = TRUE))
+      has_f_cols <- any(grepl("^f[0-9]{2}$", cols, ignore.case = TRUE))
+      
+      # Build SELECT clause based on available columns
+      # Core columns (should always exist)
+      select_parts <- c(
+        "SurveyOrder", "SurveyNumber", "Survey", "YearCoverage",
+        "TableName", "Tablenumber", "TableTitle", "Release"
+      )
+      
+      # Add "Release date" if it exists, otherwise NULL
+      if (has_release_date) {
+        # Find exact column name (might be "Release date", "ReleaseDate", etc.)
+        release_date_col <- cols[grepl("^release.?date$", cols, ignore.case = TRUE)][1]
+        select_parts <- c(select_parts, sprintf('"%s"', release_date_col))
       } else {
-        # Later format
-        query <- sprintf('SELECT SurveyOrder, SurveyNumber, Survey, YearCoverage, TableName, Tablenumber, TableTitle, Release, "Release date", F11, F12, F13, F14, F15, F16, Description, %d as YEAR FROM %s', year_4digit, table)
+        select_parts <- c(select_parts, "NULL as \"Release date\"")
       }
+      
+      # Add F11-F16 if they exist, otherwise NULL
+      if (has_f_cols) {
+        select_parts <- c(select_parts, "F11", "F12", "F13", "F14", "F15", "F16")
+      } else {
+        select_parts <- c(select_parts, 
+                         "NULL as F11", "NULL as F12", "NULL as F13", 
+                         "NULL as F14", "NULL as F15", "NULL as F16")
+      }
+      
+      # Add Description and YEAR
+      select_parts <- c(select_parts, "Description", sprintf("%d as YEAR", year_4digit))
+      
+      # Build query
+      query <- sprintf('SELECT %s FROM %s', 
+                      paste(select_parts, collapse = ", "), 
+                      table)
+      
       tables_queries <- c(tables_queries, query)
     }
     
     union_query <- paste(tables_queries, collapse=" UNION ALL ")
-    DBI::dbExecute(con, sprintf("CREATE OR REPLACE TABLE Tables_All AS %s", union_query))
+    DBI::dbExecute(con, sprintf("CREATE OR REPLACE TABLE tables_all AS %s", union_query))
     
-    if (verbose) message("      Tables_All updated")
+    if (verbose) message("      tables_all updated")
   }
   
   # Recreate vartable_All and valuesets_All with similar logic...
@@ -1106,8 +1155,8 @@ add_year_columns_to_database <- function(tables = NULL, verbose = TRUE) {
   # Get list of tables to process
   if (is.null(tables)) {
     all_tables <- DBI::dbListTables(con)
-    # Exclude metadata tables
-    tables <- all_tables[!grepl("^(ipeds_|sqlite_|Tables|vartable|valuesets)", all_tables)]
+    # Exclude metadata tables (case-insensitive since we now use lowercase)
+    tables <- all_tables[!grepl("^(ipeds_|sqlite_|tables|vartable|valuesets)", all_tables, ignore.case = TRUE)]
   }
   
   if (verbose) {
