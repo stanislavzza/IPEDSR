@@ -441,8 +441,7 @@ ui_restore_database <- function(interactive = TRUE) {
   cat("🔄 Database Restore\n\n")
   
   # List available backups
-  db_connection <- ensure_connection()
-  backup_dir <- file.path(dirname(db_connection@dbname), "backups")
+  backup_dir <- file.path(rappdirs::user_data_dir("IPEDSR"), "backups")
   
   if (!dir.exists(backup_dir)) {
     cat("❌ No backup directory found\n")
