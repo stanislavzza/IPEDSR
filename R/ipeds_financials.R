@@ -1,6 +1,6 @@
 #' Get financials
 #' @param UNITIDs vector of UNITIDs to retrieve. If NULL, uses configured default_unitid.
-#' @return Dataframe with endowment, revenue and other statistics
+#' @return Dataframe with endowment, revenue and other statistics, ordered by UNITID and Year.
 #' @export
 get_finances <- function(UNITIDs = NULL){
   # Use configured default UNITID if none provided
@@ -63,6 +63,7 @@ get_finances <- function(UNITIDs = NULL){
                 Debt_Property_Plant_Equipment = NA,
                 Net_total_revenues = F2B01 - F2B02,
                 Endowment = as.numeric(Endowment)) %>%
+        arrange(UNITID, Year) %>%
         dplyr::select(-F2A05, -F2A05A, -F2B01, -F2B02)
 
     } else {
@@ -102,7 +103,9 @@ get_finances <- function(UNITIDs = NULL){
         df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
       }
 
-      df <- df %>% dplyr::collect()
+      df <- df %>%
+        arrange(UNITID, Year) %>%
+        dplyr::collect()
     }
     out <- rbind(out, df)
 

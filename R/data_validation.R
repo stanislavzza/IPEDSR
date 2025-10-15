@@ -936,6 +936,7 @@ check_statistical_outliers <- function(table_name, db_connection) {
       # Skip columns that cause errors
     })
   }
+  }
   
   status <- if (outlier_columns == 0) "pass" else "warning"
   
@@ -1022,5 +1023,4 @@ generate_validation_recommendations <- function(validation_results) {
   }
   
   return(recommendations)
-}
 }

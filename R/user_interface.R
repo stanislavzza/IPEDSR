@@ -54,9 +54,9 @@ ipeds_data_manager <- function(action = "help", year = NULL, tables = NULL,
   
   # Print header
   cat("\n")
-  cat("=" , rep("=", 60), "=", "\n")
+  cat("=" , rep("=", 30), "=", "\n")
   cat("IPEDS DATA MANAGEMENT SYSTEM\n")
-  cat("=" , rep("=", 60), "=", "\n\n")
+  cat("=" , rep("=", 30), "=", "\n\n")
   
   # Route to appropriate function based on action
   result <- switch(action,
