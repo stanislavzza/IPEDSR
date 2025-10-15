@@ -62,9 +62,9 @@ get_finances <- function(UNITIDs = NULL){
                 Property_Plant_Equipment_net_depreciation = NA,
                 Debt_Property_Plant_Equipment = NA,
                 Net_total_revenues = F2B01 - F2B02,
-                Endowment = as.numeric(Endowment)) %>%
-        dplyr::arrange(UNITID, Year) %>%
-        dplyr::select(-F2A05, -F2A05A, -F2B01, -F2B02)
+                Endowment = as.numeric(Endowment))%>%
+        dplyr::select(-F2A05, -F2A05A, -F2B01, -F2B02) %>%
+        dplyr::arrange(UNITID, Year)
 
     } else {
 
@@ -104,8 +104,8 @@ get_finances <- function(UNITIDs = NULL){
       }
 
       df <- df %>%
-        dplyr::arrange(UNITID, Year) %>%
-        dplyr::collect()
+        dplyr::collect() %>%
+        dplyr::arrange(UNITID, Year)
     }
     out <- rbind(out, df)
 
