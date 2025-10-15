@@ -77,6 +77,20 @@ This release includes 9 critical bug fixes and several API improvements that sig
   - Wrapped `as.integer()` in `suppressWarnings()` (expected NAs in IPEDS data)
 - **Impact:** Function now works correctly with clean, quiet output
 
+### Bug #11: get_employees() Returns Nothing ✅
+- **Issue:** Function returned empty result with no error message
+- **Problems:**
+  1. Hardcoded default UNITID instead of supporting NULL/default_unitid
+  2. No error handling for `get_ipeds_table()` failures
+  3. No check for missing EAP tables
+  4. `.groups` warning in summarize
+- **Fix:**
+  - Changed default to NULL with `get_default_unitid()` support
+  - Added `tryCatch()` with error reporting
+  - Added table existence check with helpful warning
+  - Added `.groups = "drop"` to summarize
+- **Impact:** Function now provides helpful messages and handles errors gracefully
+
 ---
 
 ## API Enhancements
@@ -235,11 +249,11 @@ standardize_table_names_to_lowercase(verbose = TRUE)
 
 ## Statistics
 
-- **10 bugs fixed**
+- **11 bugs fixed**
 - **2 new exported functions**
-- **10 documentation guides created**
+- **11 documentation guides created**
 - **8 diagnostic/test tools created**
-- **~370 lines of code improved**
+- **~400 lines of code improved**
 - **All tests passing** ✅
 
 ---

@@ -109,15 +109,25 @@ get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
 }
 
 #' Get employees
-#' @param UNITIDs an array of UNITIDs, defaulting to Furman
+#' @param UNITIDs an array of UNITIDs, or NULL. If NULL, uses configured default_unitid.
 #' @return a dataframe with employee information
 #' @export
-get_employees <- function(UNITIDs = 218070){
+get_employees <- function(UNITIDs = NULL){
+  # Use configured default UNITID if none provided
+  if (is.null(UNITIDs)) {
+    UNITIDs <- get_default_unitid()
+  }
+  
   idbc <- ensure_connection()
 
   # find all the tables
   #tnames <- odbc::dbListTables(idbc, table_name = "EAP%")
   tnames <- my_dbListTables(search_string = "^EAP\\d{4}$")
+  
+  if (length(tnames) == 0) {
+    warning("No EAP tables found in database. Employee data may not be imported.")
+    return(data.frame())
+  }
 
   out <- data.frame()
 
@@ -128,13 +138,17 @@ get_employees <- function(UNITIDs = 218070){
 
     if(year < 2012) next # old format, won't try to compare
 
-    tdf <- get_ipeds_table(tname, year2 = as.character(year %% 100), UNITIDs) %>%
-      dplyr::mutate(Year = year)
+    tryCatch({
+      tdf <- get_ipeds_table(tname, year2 = as.character(year %% 100), UNITIDs) %>%
+        dplyr::mutate(Year = year)
 
-    # the 2017 table has unwanted columns
-    tdf <- tdf %>% dplyr::select(-dplyr::starts_with("XE"))
+      # the 2017 table has unwanted columns
+      tdf <- tdf %>% dplyr::select(-dplyr::starts_with("XE"))
 
-    out <- rbind(out, tdf)
+      out <- rbind(out, tdf)
+    }, error = function(e) {
+      warning(paste("Failed to process table", tname, ":", e$message))
+    })
   }
 
   out <- out %>%
@@ -162,8 +176,7 @@ get_employees <- function(UNITIDs = 218070){
     # add up the two staff rows
     out <- out %>%
     dplyr::group_by(Year, UNITID, Occupation, FacultyStatus) %>%
-    dplyr::summarize(N = sum(N), N_PT = sum(N_PT)) %>%
-    dplyr::ungroup() %>%
+    dplyr::summarize(N = sum(N), N_PT = sum(N_PT), .groups = "drop") %>%
     return()
 }
 
