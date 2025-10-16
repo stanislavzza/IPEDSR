@@ -4,27 +4,15 @@
 \alias{get_variables}
 \title{Get IPEDS variable names}
 \usage{
-get_variables(my_table, year = NULL)
+get_variables(idbc, my_table)
 }
 \arguments{
-\item{my_table}{The IPEDS table name (e.g., "HD2023", "hd2023", or just "HD" for most recent)}
+\item{idbc}{database connector to IPEDS db}
 
-\item{year}{Optional year (2004-2024). If provided with table name, will construct table_name + year}
-}
-\value{
-Data frame with varName, varTitle, and longDescription columns
+\item{my_table}{The IPEDS table being accessed}
 }
 \description{
-Given a table name, look up the variables and their friendly labels.
-For example, STABBR is "State abbreviation".
-}
-\examples{
-\dontrun{
-# Get variables for a specific table
-get_variables("HD2023")
-get_variables("hd2023")  # case-insensitive
-
-# Or separate table and year
-get_variables("HD", year = 2023)
-}
+Given a table name
+look up the variables and their friendly labels.,
+e.g. STABBR is state abbreviation.
 }

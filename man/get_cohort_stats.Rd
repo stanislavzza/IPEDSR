@@ -4,10 +4,12 @@
 \alias{get_cohort_stats}
 \title{Get cohort retention and graduation history}
 \usage{
-get_cohort_stats(UNITIDs = NULL)
+get_cohort_stats(idbc, UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{an array of IDs or NULL. If NULL, uses configured default_unitid.}
+\item{idbc}{database connector}
+
+\item{UNITIDs}{an array of IDs or NULL for everything (default)}
 }
 \value{
 Cohort year and size, and rates and numbers of returning and

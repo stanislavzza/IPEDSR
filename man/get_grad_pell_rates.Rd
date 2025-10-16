@@ -4,12 +4,12 @@
 \alias{get_grad_pell_rates}
 \title{Get pell grad rates}
 \usage{
-get_grad_pell_rates(UNITIDs = NULL)
+get_grad_pell_rates(idbc, UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{Array of identifiers, or NULL. If NULL, uses configured default_unitid.}
-
 \item{idbc}{Database connector}
+
+\item{UNITIDs}{Array of identifiers}
 }
 \value{
 Dataframe with year, unitid, and four year rates having column names

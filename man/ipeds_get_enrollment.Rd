@@ -4,15 +4,15 @@
 \alias{ipeds_get_enrollment}
 \title{Get IPEDS enrollment}
 \usage{
-ipeds_get_enrollment(UNITIDs = NULL, StudentTypeCode = 1)
+ipeds_get_enrollment(idbc, UNITIDs = NULL, StudentTypeCode = 1)
 }
 \arguments{
+\item{idbc}{Database connector for the IPEDS database.}
+
 \item{UNITIDs}{The schools to retrieve, or NULL (default) for all.}
 
 \item{StudentTypeCode}{One or more numeric codes to specify what type of student
 to filter to. See Details for, well, details. Defaults to 1, all students.}
-
-\item{idbc}{Database connector for the IPEDS database.}
 }
 \value{
 A dataframe with UNITID, Year, Total, Men, Women, White, Black, Hispanic, and NRAlien.

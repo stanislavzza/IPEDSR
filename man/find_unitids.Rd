@@ -4,9 +4,11 @@
 \alias{find_unitids}
 \title{Find UNITID from name}
 \usage{
-find_unitids(institution_names, states = NULL)
+find_unitids(idbc, institution_names, states)
 }
 \arguments{
+\item{idbc}{database connector}
+
 \item{institution_names}{a character vector of distinct institutional names.}
 
 \item{states}{An optional character vector of states, which must be the same length

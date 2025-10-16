@@ -10,6 +10,7 @@ get_ipeds_db_path()
 Character string with the database path
 }
 \description{
-Returns the path where the IPEDS database should be stored
+Returns the path where the IPEDS database should be stored.
+Always uses the user's persistent data directory to avoid re-downloading.
 }
 \keyword{internal}

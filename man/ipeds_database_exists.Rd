@@ -10,5 +10,5 @@ ipeds_database_exists()
 Logical indicating if database is ready to use
 }
 \description{
-Checks if the database file exists and can be opened
+Checks if the database file exists and has a reasonable size
 }

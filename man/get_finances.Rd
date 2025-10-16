@@ -4,13 +4,15 @@
 \alias{get_finances}
 \title{Get financials}
 \usage{
-get_finances(UNITIDs = NULL)
+get_finances(idbc, UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{vector of UNITIDs to retrieve. If NULL, uses configured default_unitid.}
+\item{idbc}{Database connector}
+
+\item{UNTIDs}{vector of UNITIDs to retrieve}
 }
 \value{
-Dataframe with endowment, revenue and other statistics, ordered by UNITID and Year.
+Dataframe with endowment, revenue and other statistics
 }
 \description{
 Get financials

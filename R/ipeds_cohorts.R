@@ -1,28 +1,25 @@
 #' Get cohort retention and graduation history
-#' @param UNITIDs an array of IDs or NULL. If NULL, uses configured default_unitid.
+#' @param idbc database connector
+#' @param UNITIDs an array of IDs or NULL for everything (default)
 #' @return Cohort year and size, and rates and numbers of returning and
 #' graduating students.
 #' @details This report omits Year because it's keyed on Chort.
 #' The columns Yr1 through Yr6 estimate enrollment.
 #' @export
-get_cohort_stats <- function(UNITIDs = NULL){
-  # Use configured default UNITID if none provided
-  if (is.null(UNITIDs)) {
-    UNITIDs <- get_default_unitid()
-  }
+get_cohort_stats <- function(idbc, UNITIDs = NULL){
 
-  ret  <- get_retention(UNITIDs) %>%
-          dplyr::select(-Year) %>%
-          dplyr::mutate(Retention = Retention / 100)
+  ret  <- get_retention(idbc, UNITIDs) %>%
+          select(-Year) %>%
+          mutate(Retention = Retention / 100)
 
-  grad <- get_grad_rates(UNITIDs) %>%
-          dplyr::select(-Year, -Cohort_size) %>%
-          tidyr::replace_na(list(Still_enrolled = 0))
+  grad <- get_grad_rates(idbc, UNITIDs) %>%
+          select(-Year, -Cohort_size) %>%
+          replace_na(list(Still_enrolled = 0))
 
   ret %>%
-        dplyr::left_join(grad) %>%
+        left_join(grad) %>%
         # class counts
-        dplyr::mutate( Yr1 = Cohort_size,
+        mutate( Yr1 = Cohort_size,
                 Yr2 = round(Yr1 * Retention),
                 Yr4 = round(Yr1 * (Grad_rate + Still_enrolled)),
                 Yr5 = round(Yr4 - Grad_rate_4yr*Yr1),
@@ -68,16 +65,10 @@ get_cohort_stats <- function(UNITIDs = NULL){
 #' 52	= Part-time students, Graduate
 #' @return A dataframe with UNITID, Year, Total, Men, Women, White, Black, Hispanic, and NRAlien.
 #' @export
-ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
-  # Use configured default UNITID if none provided
-  if (is.null(UNITIDs)) {
-    UNITIDs <- get_default_unitid()
-  }
-  
-  idbc <- ensure_connection()
+ipeds_get_enrollment <- function(idbc, UNITIDs = NULL, StudentTypeCode = 1){
 
   # student codes
-  student_codes <- tibble::tribble(
+  student_codes <- tribble(
     ~StudentTypeCode, ~StudentType,
     1	,"All students total",
     2	,"All students, Undergraduate total",
@@ -107,9 +98,9 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
     51,"Part-time students, Undergraduate, Non-degree/certificate-seeking",
     52,"Part-time students, Graduate")
 
-  # Use survey registry to get fall enrollment tables
-  ef_pattern <- get_survey_pattern("enrollment_fall")
-  tnames <- my_dbListTables(search_string = ef_pattern)
+  # find all the tables
+  #tnames <- odbc::dbListTables(idbc, table_name = "ef%a")
+  tnames <- my_dbListTables(idbc, search_string = "^EF\\d{4}A$")
 
   out <- data.frame()
 
@@ -119,11 +110,11 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
     year <- as.integer(substr(tname, 3,6))
 
     # the varnames switched in 2008
-    if(tname <= "ef2007a"){
+    if(tname <= "EF2007A"){
 
-      tdf <- dplyr::tbl(idbc, tname) %>%
-        dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
-        dplyr::select(UNITID,
+      tdf <- tbl(idbc, tname) %>%
+        filter( EFALEVEL %in% !!StudentTypeCode) %>%
+        select(UNITID,
                StudentTypeCode = EFALEVEL,
                Total = EFRACE24,
                Men = EFRACE15,
@@ -132,11 +123,11 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
                Black = EFRACE18,
                Hispanic = EFRACE21,
                NRAlien = EFRACE17)
-    } else if(tname <= "ef2009a"){
+    } else if(tname <= "EF2009A"){
 
-      tdf <- dplyr::tbl(idbc, tname) %>%
-        dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
-        dplyr::select(UNITID,
+      tdf <- tbl(idbc, tname) %>%
+        filter( EFALEVEL %in% !!StudentTypeCode) %>%
+        select(UNITID,
                StudentTypeCode = EFALEVEL,
                Total = EFTOTLT,
                Men = EFTOTLM,
@@ -148,9 +139,9 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 
     } else {
 
-      tdf <- dplyr::tbl(idbc, tname) %>%
-        dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
-        dplyr::select(UNITID,
+      tdf <- tbl(idbc, tname) %>%
+        filter( EFALEVEL %in% !!StudentTypeCode) %>%
+        select(UNITID,
                StudentTypeCode = EFALEVEL,
                Total = EFTOTLT,
                Men = EFTOTLM,
@@ -163,19 +154,19 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 
     if(!is.null(UNITIDs)) {
       tdf <- tdf %>%
-        dplyr::filter(UNITID %in% !!UNITIDs)
+        filter(UNITID %in% !!UNITIDs)
     }
 
     tdf <- tdf %>%
-      dplyr::collect() %>%
-      dplyr::mutate(Year = year)
+      collect() %>%
+      mutate(Year = year)
 
     out <- rbind(out, tdf)
   }
 
   # add code descriptions
   out <- out %>%
-    dplyr::left_join(student_codes, by = "StudentTypeCode")
+    left_join(student_codes)
 
   return(out)
 }
@@ -187,17 +178,10 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 #' @details The cohort  = year - 1 since the retention rate is reported a year
 #' later. A cohort column is included to make this clear.
 #' @export
-get_retention <- function(UNITIDs = NULL){
-  # Use configured default UNITID if none provided
-  if (is.null(UNITIDs)) {
-    UNITIDs <- get_default_unitid()
-  }
-  
-  idbc <- ensure_connection()
-  
-  # Use survey registry to get enrollment residence tables
-  ef_res_pattern <- get_survey_pattern("enrollment_residence")
-  tnames <- my_dbListTables(search_string = ef_res_pattern)
+get_retention <- function(idbc, UNITIDs = NULL){
+  # find all the tables
+  # tnames <- odbc::dbListTables(idbc, table_name = "ef20__D")
+  tnames <- my_dbListTables(idbc, search_string = "^EF\\d{4}D$")
 
   out <- data.frame()
 
@@ -207,65 +191,59 @@ get_retention <- function(UNITIDs = NULL){
     year <- as.integer(substr(tname, 3,6))
 
     if (year < 2007) {
-      df <- dplyr::tbl(idbc,tname) %>%
-        dplyr::select(UNITID,
+      df <- tbl(idbc,tname) %>%
+        select(UNITID,
                # cohort size not available
                Retention   = RET_PCF)
     } else {
-      df <- dplyr::tbl(idbc,tname) %>%
-        dplyr::select(UNITID,
+      df <- tbl(idbc,tname) %>%
+        select(UNITID,
                Cohort_size = RRFTCTA,
                Retention   = RET_PCF)
     }
 
     if(!is.null(UNITIDs)) {
       df <- df %>%
-        dplyr::filter(UNITID %in% !!UNITIDs)
+        filter(UNITID %in% !!UNITIDs)
     }
 
     df <- df %>%
-      dplyr::collect() %>%
-      dplyr::mutate(Year = year)
+      collect() %>%
+      mutate(Year = year)
 
     # add blank cohort column if it doesn't exist
     if(!"Cohort_size" %in% names(df)) {
       df <- df %>%
-        dplyr::mutate(Cohort_size = NA)
+        mutate(Cohort_size = NA)
     }
 
-    df <- df |> dplyr::select(UNITID, Year, Cohort_size, Retention)
+    df <- df |> select(UNITID, Year, Cohort_size, Retention)
 
     out <- rbind(out, df)
   }
   # fix it so that the retention rate lines up with the cohort size
   # otherwise the retention rate and cohort size are mismatched
   out <- out %>%
-    dplyr::group_by(UNITID) %>%
-    dplyr::arrange(Year) %>%
-    dplyr::mutate(Cohort = Year - 1) %>%
-    dplyr::ungroup()
+    group_by(UNITID) %>%
+    arrange(Year) %>%
+    mutate(Cohort = Year - 1) %>%
+    ungroup()
 
   return(out)
 }
 
 #' Admit Funnel
 #' @param idbc database connector
-#' @param UNITIDs optional list of UNITIDs to filter to. If NULL, uses configured default_unitid.
+#' @param UNITIDs optional list of UNITIDs to filter to
 #' @export
-get_admit_funnel <- function(UNITIDs = NULL){
-  # Use configured default UNITID if none provided
-  if (is.null(UNITIDs)) {
-    UNITIDs <- get_default_unitid()
-  }
-  
-  idbc <- ensure_connection()
+get_admit_funnel <- function(idbc, UNITIDs = NULL){
 
   # output data
   out <- data.frame()
 
-  # Use survey registry to get admissions pre-2014 tables
-  ic_pattern <- get_survey_pattern("admissions_pre2014")
-  tnames <- my_dbListTables(search_string = ic_pattern)
+  # find all the tables before 2014
+  #tnames <- odbc::dbListTables(idbc, table_name = "ic____", table_type = "TABLE")
+  tnames <- my_dbListTables(idbc, search_string = "^IC\\d{4}$")
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -273,8 +251,8 @@ get_admit_funnel <- function(UNITIDs = NULL){
 
     if(year >= 2014) next # spec changed
 
-    df <- dplyr::tbl(idbc, tname) %>%
-      dplyr::select(UNITID,
+    df <- tbl(idbc, tname) %>%
+      select(UNITID,
              Male_apps      = APPLCNM,
              Female_apps    = APPLCNW,
              Male_admits    = ADMSSNM,
@@ -298,11 +276,11 @@ get_admit_funnel <- function(UNITIDs = NULL){
       )
 
 
-    if (!is.null(UNITIDs)) df<- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
+    if (!is.null(UNITIDs)) df<- df %>% filter(UNITID %in% !!UNITIDs)
 
     df <- df |>
-      dplyr::collect() %>%
-      dplyr::mutate(
+      collect() %>%
+      mutate(
         Male_apps      = as.integer(Male_apps),
         Female_apps    = as.integer(Female_apps),
         Male_admits    = as.integer(Male_admits),
@@ -333,9 +311,10 @@ get_admit_funnel <- function(UNITIDs = NULL){
     out <- rbind(out, df)
   }
 
-  # Use survey registry to get admissions 2014+ tables
-  adm_pattern <- get_survey_pattern("admissions_2014plus")
-  tnames <- my_dbListTables(search_string = adm_pattern)
+  # after 2014
+  # find all the tables before 2014
+  #tnames <- odbc::dbListTables(idbc, table_name = "adm____", table_type = "TABLE")
+  tnames <- my_dbListTables(idbc, search_string = "^ADM\\d{4}$")
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -343,8 +322,8 @@ get_admit_funnel <- function(UNITIDs = NULL){
 
     if(year < 2014) next # spec changed
 
-    df <- dplyr::tbl(idbc, tname) %>%
-      dplyr::select(UNITID,
+    df <- tbl(idbc, tname) %>%
+      select(UNITID,
              Male_apps      = APPLCNM,
              Female_apps    = APPLCNW,
              Male_admits    = ADMSSNM,
@@ -367,11 +346,11 @@ get_admit_funnel <- function(UNITIDs = NULL){
              ACTPCT,
       )
 
-    if (!is.null(UNITIDs)) df<- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
+    if (!is.null(UNITIDs)) df<- df %>% filter(UNITID %in% !!UNITIDs)
 
     df <- df |>
-      dplyr::collect() %>%
-      dplyr::mutate(
+      collect() %>%
+      mutate(
         Male_apps      = as.integer(Male_apps),
         Female_apps    = as.integer(Female_apps),
         Male_admits    = as.integer(Male_admits),
@@ -409,22 +388,17 @@ get_admit_funnel <- function(UNITIDs = NULL){
 
 #' Get financial aid
 #' @param idbc IPEDS database connection
-#' @param UNITIDs Optional list of UNITIDs to filter to. If NULL, uses configured default_unitid.
+#' @param UNITIDs Optional list of UNITIDs to filter to
 #' @export
 
-get_fa_info <- function(UNITIDs = NULL){
-  # Use configured default UNITID if none provided
-  if (is.null(UNITIDs)) {
-    UNITIDs <- get_default_unitid()
-  }
-  idbc <- ensure_connection()
+get_fa_info <- function(idbc, UNITIDs = NULL){
   # input should be a sfa file, eg.
   # df <- read_csv("data/IPEDS/2017/sfa1617.csv", guess_max = 5000) %>%
   # adds a given year to the df
 
-  # Use survey registry to get financial aid tables
-  sfa_pattern <- get_survey_pattern("financial_aid")
-  tnames <- my_dbListTables(search_string = sfa_pattern)
+  # find all the tables
+  #tnames <- odbc::dbListTables(idbc, table_name = "sfa%")
+  tnames <- my_dbListTables(idbc, search_string = "^SFA\\d{4}")
 
   # leave out the sfav ones
   #tnames <- tnames[!str_detect(tnames,"SFAV")]
@@ -435,19 +409,20 @@ get_fa_info <- function(UNITIDs = NULL){
 
   for(tname_prefix in tname_prefixes) {
     Year <- 2000 + as.integer(substr(tname_prefix,4,5))
+    print(Year)
 
-    tname_set <- tnames[ stringr::str_detect(tnames, tname_prefix)]
+    tname_set <- tnames[ str_detect(tnames, tname_prefix)]
 
     # start by joining all the tables in the set
-    df <- dplyr::tbl(idbc,tname_set[1])
+    df <- tbl(idbc,tname_set[1])
 
-    if(length(tname_set) == 2) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[2]), by = "UNITID")
-    if(length(tname_set) == 3) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[3]), by = "UNITID")
+    if(length(tname_set) == 2) df <- df %>% left_join(tbl(idbc,tname_set[2]))
+    if(length(tname_set) == 3) df <- df %>% left_join(tbl(idbc,tname_set[3]))
 
     if(Year < 2011) { ############ Old ones lacked some data
 
       df <- df %>%
-        dplyr::select(UNITID,
+        select(UNITID,
                N_undergraduates   = SCFA2,
                N_fall_cohort      = SCFA1N,
                Percent_PELL       = FGRNT_P,
@@ -458,12 +433,12 @@ get_fa_info <- function(UNITIDs = NULL){
         )
 
       if (!is.null(UNITIDs)) {
-        df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
+        df <- df %>% filter(UNITID %in% !!UNITIDs)
       }
 
       df <- df %>%
-        dplyr::collect() %>%
-        dplyr::mutate(
+        collect() %>%
+        mutate(
           T_inst_aid         = N_inst_aid * Avg_inst_aid,
           Avg_net_price      = NA,
           Avg_net_price_0k   = NA,
@@ -480,7 +455,7 @@ get_fa_info <- function(UNITIDs = NULL){
 
     } else { # 2011 on
       df <- df %>%
-        dplyr::select(UNITID,
+        select(UNITID,
                N_undergraduates   = SCFA2,
                N_fall_cohort      = SCFA1N,
                Percent_PELL       = FGRNT_P,
@@ -502,12 +477,12 @@ get_fa_info <- function(UNITIDs = NULL){
         )
 
       if (!is.null(UNITIDs)) {
-        df <- df %>% dplyr::filter(UNITID %in% !!UNITIDs)
+        df <- df %>% filter(UNITID %in% !!UNITIDs)
       }
 
       df <- df %>%
-        dplyr::collect() %>%
-        dplyr::mutate(Year = Year)
+        collect() %>%
+        mutate(Year = Year)
     }
     out <- rbind(out,df)
   }

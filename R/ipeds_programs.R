@@ -1,24 +1,17 @@
 #' Get CIPS
 #' @description Given institutional IDs, get completions by year and CIP for each
 #' @param idbc Database connector
-#' @param UNITIDs UNITIDs, or NULL. If NULL, uses configured default_unitid.
+#' @param UNITIDs UNITIDs, or NULL for everything
 #' @param years The years of data to retrieve; the table name minus one. Years before 2007 are invalid.
 #' @param cip_codes Provide a vector of codes to search for. This can be two-digit, four, or six. Note
 #' code "99" is all degrees, which is filtered out if you leave cip_codes NULL.
 #' @param awlevel Award level, defaults to "05" for Bachelors
 #' @return A data frame with UNITID, CIPCODE, MAJORNUM, N (the count of completions), and Year
 #' @export
-get_cips <- function(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "05"){
-  # Use configured default UNITID if none provided
-  if (is.null(UNITIDs)) {
-    UNITIDs <- get_default_unitid()
-  }
-  
-  idbc <- ensure_connection()
+get_cips <- function(idbc, UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "05"){
 
-  # Use survey registry to get completions tables
-  comp_pattern <- get_survey_pattern("completions")
-  tnames <- my_dbListTables(search_string = comp_pattern)
+  # find all the tables
+  tnames <- my_dbListTables(idbc, search_string = "^C\\d{4}_A$")
 
   out <- data.frame()
 
@@ -35,21 +28,24 @@ get_cips <- function(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "
 
     if(year < 2009) next # the C2006_A and C2007_A tables have different column names
 
-    tdf <- dplyr::tbl(idbc, tname) %>%
-      dplyr::filter(AWLEVEL == !!awlevel) # 99 is total degrees
+
+    message("Processing ", tname, " for year ", year)
+
+    tdf <- tbl(idbc, tname) %>%
+      filter(AWLEVEL == !!awlevel) # 99 is total degrees
 
     if (!is.null(cip_codes)) {
       tdf <- tdf %>% filter(CIPCODE %in% !!cip_codes)
     } else {
-      tdf <- tdf %>% dplyr::filter(CIPCODE != "99") # 99 is total degrees
+      tdf <- tdf %>% filter(CIPCODE != "99") # 99 is total degrees
     }
 
-    if(!is.null(UNITIDs)) tdf <- tdf %>% dplyr::filter(UNITID %in% !!UNITIDs)
+    if(!is.null(UNITIDs)) tdf <- tdf %>% filter(UNITID %in% !!UNITIDs)
 
     tdf <- tdf %>% # CIP 99 is total
-      dplyr::select(UNITID, CIPCODE, MAJORNUM, N = CTOTALT) %>%
-      dplyr::collect() %>%
-      dplyr::mutate(Year = year)
+      select(UNITID, CIPCODE, MAJORNUM, N = CTOTALT) %>%
+      collect() %>%
+      mutate(Year = year)
 
       out <- rbind(out,tdf)
   }
@@ -64,20 +60,21 @@ get_cips <- function(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "
 #' @details If CIPs are truncated, there are multiple versions, which are reduced
 #' through distinct(). That may not be optimal.
 #' @export
-get_cipcodes <- function(digits = NULL){
-  idbc <- ensure_connection()
+get_cipcodes <- function(idbc, digits = NULL){
 
-  # Use valuesets_all for code-to-label mappings
-  # Note: valuesets_all is the aggregated source for all code mappings across years
-  tdf <- dplyr::tbl(idbc, "valuesets_all") %>%
-    dplyr::filter(varName == "CIPCODE") %>%
-    dplyr::select(CIPCODE = Codevalue, Subject = valueLabel) %>%
-    dplyr::collect() %>%
+  # find the most recent values table
+  tname <- my_dbListTables(idbc, search_string = "^VALUESETS\\d\\d$") %>% max()
+
+  # get the cipcodes
+  tdf <- tbl(idbc,tname) %>%
+    filter(varName == "CIPCODE") %>%
+    select(CIPCODE = Codevalue, Subject = valueLabel) %>%
+    collect() %>%
     unique()
 
   if(!is.null(digits)) {
     tdf <- tdf %>%
-      dplyr::filter(nchar(CIPCODE) == digits)
+      filter(nchar(CIPCODE) == digits)
   }
 
   return(tdf)
@@ -106,17 +103,10 @@ get_cipcodes <- function(digits = NULL){
 #' @return A dataframe with Year, UNITID, CIP2, and count, including both first and second majors
 #' @export
 
-get_cip2_counts <- function(awlevel = "05", UNITIDs = NULL, first_only = FALSE){
-  # Use configured default UNITID if none provided
-  if (is.null(UNITIDs)) {
-    UNITIDs <- get_default_unitid()
-  }
-  
-  idbc <- ensure_connection()
+get_cip2_counts <- function(idbc, awlevel = "05", UNITIDs = NULL, first_only = FALSE){
 
-  # Use survey registry to get completions tables
-  comp_pattern <- get_survey_pattern("completions")
-  tnames <- my_dbListTables(search_string = comp_pattern)
+  # find all the tables
+  tnames <- my_dbListTables(idbc, search_string = "^C20\\d\\d_A$")
 
   out <- data.frame()
 
@@ -125,34 +115,30 @@ get_cip2_counts <- function(awlevel = "05", UNITIDs = NULL, first_only = FALSE){
     # use the fall near, not the year on the table name
     year <- as.integer(substr(tname, 2,5))
 
-    # Get CIP code lookup from valuesets_all
-    # Use year to filter to relevant codes
-    ltable <- dplyr::tbl(idbc, "valuesets_all") %>%
-      dplyr::filter(varName == "CIPCODE", 
-                    nchar(Codevalue) == 2,
-                    YEAR == !!year) %>%
-      dplyr::select(CIP2 = Codevalue, CIPDesc = valueLabel) %>%
-      dplyr::collect() %>%
-      dplyr::distinct(CIP2, .keep_all = TRUE)
+    # get the lookup table name
+    ltable <- tbl(idbc, str_c("valuesets", substr(tname, 4,5))) %>%
+      filter(varName == "CIPCODE", nchar(Codevalue) == 2) %>%
+      select(CIP2 = Codevalue, CIPDesc = valueLabel) %>%
+      collect() %>%
+      distinct(CIP2, .keep_all = TRUE)
 
     if(year <= 2007) next # these have different column names
 
-    tdf <- dplyr::tbl(idbc, tname) %>%
-      dplyr::filter(AWLEVEL %in% !!awlevel,
-             CIPCODE != "99") %>%           # CIP 99 is total
-      dplyr::collect() %>%
-      dplyr::filter(nchar(CIPCODE) == 2)    # Filter after collect for nchar()
+    tdf <- tbl(idbc, tname) %>%
+      filter(AWLEVEL %in% !!awlevel,
+             CIPCODE != "99",           # CIP 99 is total
+             nchar(CIPCODE) == 2)
 
-    if(!is.null(UNITIDs)) tdf <- tdf %>% dplyr::filter(UNITID %in% UNITIDs)
-    if(first_only == TRUE) tdf <- tdf %>% dplyr::filter(MAJORNUM == 1)
+    if(!is.null(UNITIDs)) tdf <- tdf %>% filter(UNITID %in% UNITIDs)
+    if(first_only == TRUE) tdf <- tdf %>% filter(MAJORNUM == 1)
 
     tdf <- tdf %>%
-      dplyr::select(UNITID, CIP2  = CIPCODE, MAJORNUM, N = CTOTALT) %>%
-      dplyr::mutate(CIP2 = as.character(CIP2)) %>%  # Convert to character for join
-      dplyr::left_join(ltable, by = "CIP2") %>%
-      dplyr::group_by(UNITID, CIP2, CIPDesc) %>%
-      dplyr::summarize(N = sum(N)) %>%
-      dplyr::mutate(Year = year)
+      select(UNITID, CIP2  = CIPCODE, MAJORNUM, N = CTOTALT) %>%
+      collect() %>%
+      left_join(ltable) %>%
+      group_by(UNITID, CIP2, CIPDesc) %>%
+      summarize(N = sum(N)) %>%
+      mutate(Year = year)
 
     out <- rbind(out, tdf)
   }

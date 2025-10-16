@@ -4,10 +4,12 @@
 \alias{get_tuition}
 \title{Get IPEDS tuition}
 \usage{
-get_tuition(UNITIDs = NULL)
+get_tuition(idbc, UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{IPEDS school IDs. If NULL, uses configured default_unitid.}
+\item{idbc}{Database connector}
+
+\item{UNITIDs}{IPEDS school IDs. If NULL, gets everything}
 }
 \value{
 A dataframe with UNITID, Year, Tuition, Fees, RoomBoard for undergrad

@@ -4,10 +4,12 @@
 \alias{my_dbListTables}
 \title{Find matching tables}
 \usage{
-my_dbListTables(search_string)
+my_dbListTables(idbc, search_string)
 }
 \arguments{
-\item{search_string}{A regex pattern to search for in the table names (case-sensitive)}
+\item{idbc}{database connection}
+
+\item{search_string}{A string to search for in the table names}
 }
 \value{
 A character vector of table names that match the search string

@@ -1,13 +1,13 @@
 #' Find matching tables
-#' @param search_string A regex pattern to search for in the table names (case-sensitive)
+#' @param idbc database connection
+#' @param search_string A string to search for in the table names
 #' @return A character vector of table names that match the search string
 #' @export
-my_dbListTables <- function(search_string){
-  idbc <- ensure_connection()
-  tables <- DBI::dbListTables(idbc)
-  # Match against actual table names (lowercase in current database)
-  # search_string should be a lowercase regex pattern
-  tables <- tables[stringr::str_detect(tables, search_string)]
+my_dbListTables <- function(idbc, search_string){
+
+  tables <- dbListTables(idbc, table_type = "TABLE")
+  tables <- tables[str_detect(toupper(tables), search_string)]
+
   return(tables)
 }
 
@@ -15,278 +15,125 @@ my_dbListTables <- function(search_string){
 #' @description Given results from an IPEDS table,
 #' create a long dataframe with friendly variable names
 #' and translated code values.
+#' @param idbc database connector to IPEDS db
 #' @param my_table The IPEDS table being accessed
 #' @param df Data from the table given
 #' @param verbose Logical, defaults to FALSE--Include the long descriptions of vars?
 #' @export
-get_labels <- function(my_table, df, verbose = FALSE){
-  vars     <- get_variables(my_table)
-  valueset <- get_valueset(my_table)
+get_labels <- function(idbc, my_table, df, verbose = FALSE){
+  vars     <- get_variables(idbc, my_table)
+  valueset <- get_valueset(idbc, my_table)
 
-  if (!verbose) vars <- vars %>% dplyr::select(-longDescription)
+  if (!verbose) vars <- vars %>% select(-longDescription)
 
   df %>%
-    dplyr::mutate(Row = dplyr::row_number()) %>%
-    tidyr::gather(varName, Codevalue, -UNITID, -Row) %>%
-    dplyr::mutate(Codevalue = as.character(Codevalue)) %>%
-    dplyr::left_join(vars, by = "varName") %>%
-    dplyr::left_join(valueset, by = c("varName", "Codevalue")) %>%
-    tidyr::replace_na(list(valueLabel = "Count")) %>%
+    mutate(Row = row_number()) %>%
+    gather(varName, Codevalue, -UNITID, -Row) %>%
+    mutate(Codevalue = as.character(Codevalue)) %>%
+    left_join(vars) %>%
+    left_join(valueset) %>%
+    replace_na(list(valueLabel = "Count")) %>%
     return()
 }
 
 #' Get IPEDS variable names
-#' @description Given a table name, look up the variables and their friendly labels.
-#' For example, STABBR is "State abbreviation".
-#' @param my_table The IPEDS table name (e.g., "HD2023", "hd2023", or just "HD" for most recent)
-#' @param year Optional year (2004-2024). If provided with table name, will construct table_name + year
-#' @return Data frame with varName, varTitle, and longDescription columns
+#' @description Given a table name
+#' look up the variables and their friendly labels.,
+#' e.g. STABBR is state abbreviation.
+#' @param idbc database connector to IPEDS db
+#' @param my_table The IPEDS table being accessed
 #' @export
-#' @examples
-#' \dontrun{
-#' # Get variables for a specific table
-#' get_variables("HD2023")
-#' get_variables("hd2023")  # case-insensitive
-#' 
-#' # Or separate table and year
-#' get_variables("HD", year = 2023)
-#' }
-get_variables <- function(my_table, year = NULL){
-  idbc <- ensure_connection()
-  
-  # Handle year parameter if provided
-  if (!is.null(year)) {
-    # Extract just the table prefix if a full table name was provided
-    table_prefix <- gsub("\\d{4}|\\d{2}$", "", my_table, perl = TRUE)
-    my_table <- paste0(table_prefix, year)
-  }
-  
-  # Normalize table name to lowercase (our current standard)
-  my_table_lower <- tolower(my_table)
-  my_table_upper <- toupper(my_table)
-  
-  # Try to extract year from table name (4-digit or 2-digit)
-  yr_4digit <- stringr::str_extract(my_table, "\\d{4}")
-  yr_2digit <- stringr::str_extract(my_table, "\\d{2}$")
-  
-  if (!is.null(yr_4digit)) {
-    # 4-digit year found (e.g., HD2023)
-    yr <- stringr::str_sub(yr_4digit, 3, 4)
-  } else if (!is.null(yr_2digit)) {
-    # 2-digit year found (e.g., HD23)
-    yr <- yr_2digit
-  } else {
-    # No year in table name - try vartable_all
-    result <- dplyr::tbl(idbc, "vartable_all") %>%
-      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower) %>%
-      dplyr::select(varName, varTitle, longDescription) %>%
-      dplyr::collect()
-    
-    if (nrow(result) == 0) {
-      stop("Could not find variables for table '", my_table, "'. ",
-           "Please specify a year (e.g., 'HD2023' or use year parameter).")
-    }
-    return(result)
-  }
-  
+get_variables <- function(idbc, my_table){
+
+  # find the year. Depends on a four-digit year
+  yr <- str_extract(my_table, "\\d\\d\\d\\d") %>% str_sub(3,4)
   fname <- paste0("vartable", yr)
-  
-  # Check if year-specific table exists, otherwise use vartable_all
-  all_tables <- DBI::dbListTables(idbc)
-  
-  if (fname %in% all_tables) {
-    # Use year-specific vartable
-    result <- dplyr::tbl(idbc, fname) %>%
-      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower) %>%
-      dplyr::select(varName, varTitle, longDescription) %>%
-      dplyr::collect()
-  } else {
-    # Fall back to vartable_all
-    yr_4digit_full <- ifelse(as.numeric(yr) <= 50, 
-                             2000 + as.numeric(yr), 
-                             1900 + as.numeric(yr))
-    
-    result <- dplyr::tbl(idbc, "vartable_all") %>%
-      dplyr::filter((TableName == my_table_upper | TableName == my_table_lower) & 
-                    YEAR == yr_4digit_full) %>%
-      dplyr::select(varName, varTitle, longDescription) %>%
-      dplyr::collect()
-  }
-  
-  if (nrow(result) == 0) {
-    warning("No variables found for table '", my_table, "' (year: ", yr, "). ",
-            "Check if table name is correct.")
-  }
-  
-  return(result)
+
+  # get the index for the table
+  tbl(idbc, fname ) %>%
+    filter(TableName == my_table) %>%
+    select(varName, varTitle, longDescription) %>%
+    collect() %>%
+    return()
 }
 
 #' Get valueset
-#' @description Given a table name, look up the variables, codes, and labels.
-#' For example, STABBR has code "SC" with label "South Carolina".
-#' @param my_table The IPEDS table name (e.g., "HD2023", "hd2023", or just "HD" for most recent)
-#' @param year Optional year (2004-2024). If provided with table name, will construct table_name + year
-#' @param variable_name Optional variable name to filter results (e.g., "SECTOR", "CONTROL")
-#' @return Data frame with varName, Codevalue, and valueLabel columns
+#' @description Given a table name
+#' look up the variables, codes, and labels that go with codes
+#' (e.g. STABBR has a code "SC" for "South Carolina")
+#' @param idbc database connector to IPEDS db
+#' @param my_table The IPEDS table being accessed
 #' @export
-#' @examples
-#' \dontrun{
-#' # Get all value sets for a table
-#' get_valueset("HD2023")
-#' 
-#' # Get value sets for specific variable
-#' get_valueset("HD2023", variable_name = "SECTOR")
-#' 
-#' # Using separate year parameter
-#' get_valueset("HD", year = 2023, variable_name = "CONTROL")
-#' }
-get_valueset <- function(my_table, year = NULL, variable_name = NULL){
-  idbc <- ensure_connection()
-  
-  # Handle year parameter if provided
-  if (!is.null(year)) {
-    # Extract just the table prefix if a full table name was provided
-    table_prefix <- gsub("\\d{4}|\\d{2}$", "", my_table, perl = TRUE)
-    my_table <- paste0(table_prefix, year)
-  }
-  
-  # Normalize table name to lowercase (our current standard)
-  my_table_lower <- tolower(my_table)
-  my_table_upper <- toupper(my_table)
-  
-  # Try to extract year from table name (4-digit or 2-digit)
-  yr_4digit <- stringr::str_extract(my_table, "\\d{4}")
-  yr_2digit <- stringr::str_extract(my_table, "\\d{2}$")
-  
-  if (!is.null(yr_4digit)) {
-    # 4-digit year found (e.g., HD2023)
-    yr <- stringr::str_sub(yr_4digit, 3, 4)
-  } else if (!is.null(yr_2digit)) {
-    # 2-digit year found (e.g., HD23)
-    yr <- yr_2digit
-  } else {
-    # No year in table name - try valuesets_all
-    query <- dplyr::tbl(idbc, "valuesets_all") %>%
-      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower)
-    
-    if (!is.null(variable_name)) {
-      query <- query %>% dplyr::filter(varName == toupper(variable_name))
-    }
-    
-    result <- query %>%
-      dplyr::select(varName, Codevalue, valueLabel) %>%
-      dplyr::collect()
-    
-    if (nrow(result) == 0) {
-      stop("Could not find value sets for table '", my_table, "'. ",
-           "Please specify a year (e.g., 'HD2023' or use year parameter).")
-    }
-    return(result)
-  }
-  
+get_valueset <- function(idbc, my_table){
+
+  # find the year. Depends on a four-digit year
+  yr <- str_extract(my_table, "\\d\\d\\d\\d") %>% str_sub(3,4)
   fname <- paste0("valuesets", yr)
-  
-  # Check if year-specific table exists, otherwise use valuesets_all
-  all_tables <- DBI::dbListTables(idbc)
-  
-  if (fname %in% all_tables) {
-    # Use year-specific valuesets table
-    query <- dplyr::tbl(idbc, fname) %>%
-      dplyr::filter(TableName == my_table_upper | TableName == my_table_lower)
-    
-    if (!is.null(variable_name)) {
-      query <- query %>% dplyr::filter(varName == toupper(variable_name))
-    }
-    
-    result <- query %>%
-      dplyr::select(varName, Codevalue, valueLabel) %>%
-      dplyr::collect()
-  } else {
-    # Fall back to valuesets_all
-    yr_4digit_full <- ifelse(as.numeric(yr) <= 50, 
-                             2000 + as.numeric(yr), 
-                             1900 + as.numeric(yr))
-    
-    query <- dplyr::tbl(idbc, "valuesets_all") %>%
-      dplyr::filter((TableName == my_table_upper | TableName == my_table_lower) & 
-                    YEAR == yr_4digit_full)
-    
-    if (!is.null(variable_name)) {
-      query <- query %>% dplyr::filter(varName == toupper(variable_name))
-    }
-    
-    result <- query %>%
-      dplyr::select(varName, Codevalue, valueLabel) %>%
-      dplyr::collect()
-  }
-  
-  if (nrow(result) == 0) {
-    warning("No value sets found for table '", my_table, "' (year: ", yr, "). ",
-            "Check if table name is correct.")
-  }
-  
-  return(result)
+
+  # get the index for the table
+  tbl(idbc, fname ) %>%
+    filter(TableName == my_table) %>%
+    select(varName, Codevalue,valueLabel) %>%
+    collect() %>%
+    return()
 }
 
 #' Retrieve IPEDS data with columns renamed
 #' @description get a whole table with the columns named for their descriptions,
 #' and any code values replaced with the text version.
+#' @param idbc Database connection
 #' @param table_name The complete name of the table including year
 #' @param year2 A two-character year, as in 20XX, so 2020 is "20" and 2021 is "21"
 #' @param UNITIDs an optional list of IDs, or NULL for everything
-#' @details Uses vartable_all and valuesets_all with year filtering to get
-#'          year-specific variable definitions and code mappings.
+#' @details The year2 input is used to find the var and value tables needed
+#'          to upack the codes into text
 #' @return A dataframe with human-readable data.
 #' @export
-get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
-  idbc <- ensure_connection()
+get_ipeds_table <- function(idbc, table_name, year2, UNITIDs = NULL){
 
-  table_name_lower <- tolower(table_name)
-  table_name_upper <- toupper(table_name)
-  
-  # Convert 2-digit year to 4-digit year for filtering _all tables
-  year4 <- as.integer(year2)
-  year4 <- ifelse(year4 <= 50, 2000 + year4, 1900 + year4)
+  table_name <- toupper(table_name)
+  values_tname <- str_c("valuesets", year2)
+  vars_tname <- str_c("vartable", year2)
 
-  my_data   <- dplyr::tbl(idbc, table_name_lower) %>%
-               dplyr::select(-dplyr::starts_with("IALIAS"),
-                      -dplyr::starts_with("DUNS")) # these are Blobs that cause index failure
+  my_data   <- tbl(idbc, table_name) %>%
+               select(-starts_with("IALIAS"),
+                      -starts_with("DUNS")) # these are Blobs that cause index failure
 
   if(!is.null(UNITIDs)) {
     my_data <- my_data %>%
-      dplyr::filter(UNITID %in% !!UNITIDs)
+      filter(UNITID %in% !!UNITIDs)
   }
 
   my_data <- my_data %>%
-    dplyr::collect()
+    collect()
 
-  # Get year-specific value mappings from valuesets_all
-  # This contains code-to-label mappings (e.g., 1 = "Public", 2 = "Private")
-  my_values <- dplyr::tbl(idbc, "valuesets_all") %>%
-    dplyr::filter(TableName == !!table_name_upper & YEAR == !!year4) %>%
-    dplyr::select(varName, Codevalue, valueLabel) %>%
-    dplyr::collect()
+  # get any variables that need to be interpolated from numbers to characters,
+  # e.g. 1 = public, 2 = private
+  my_values <- tbl(idbc,values_tname) %>%
+    filter(TableName == !!table_name) %>%
+    select(varName, Codevalue, valueLabel) %>%
+    collect()
 
   # replace codes with text strings where this applies
   cols_to_do <- my_values %>%
-    dplyr::select(varName) %>%
-    dplyr::distinct() %>%
-    dplyr::pull() # converts from a dataframe to an array
+    select(varName) %>%
+    distinct() %>%
+    pull() # converts from a dataframe to an array
 
   for(vname in cols_to_do){
     lookups <- my_values %>%
-      dplyr::filter(varName == !!vname)
+      filter(varName == !!vname)
 
     my_data[[vname]] <- lookups$valueLabel[match(my_data[[vname]], lookups$Codevalue )]
   }
 
-  # Get year-specific variable definitions from vartable_all
-  # This contains variable name to friendly title mappings
-  my_cols <- dplyr::tbl(idbc, "vartable_all") %>%
-      dplyr::select(varName, varTitle, TableName, longDescription, YEAR) %>%
-      dplyr::filter(TableName == !!table_name_upper & YEAR == !!year4) %>%
-      dplyr::collect() %>%
-      dplyr::select(-TableName, -YEAR)
+  # the column names are meaningless, so let's change those to something better
+  # using the IPEDS column name index here:
+  my_cols <- tbl(idbc,vars_tname) %>%
+      select(varName, varTitle, TableName, longDescription) %>%
+      filter(TableName == !!table_name) %>%
+      collect() %>%
+      select(-TableName)
 
   # match up the column names in ret_data to the descriptions and swap them
   # 1. get the column names as they are now
@@ -329,6 +176,7 @@ get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
 
 #' Find UNITID from name
 #' @description Use a school's name to attempt a unique ID match
+#' @param idbc database connector
 #' @param institution_names a character vector of distinct institutional names.
 #' @param states An optional character vector of states, which must be the same length
 #' as the names. States will help names be more specific. Blanks will be ignored.
@@ -336,38 +184,32 @@ get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
 #' are dropped.
 #' @details Uses the most recent IPEDS files.
 #' @export
-find_unitids <- function(institution_names, states = NULL){
-  idbc <- ensure_connection()
+find_unitids <- function(idbc, institution_names, states){
 
-  # Use survey registry to get most recent directory table
-  hd_pattern <- get_survey_pattern("directory")
-  tname <- my_dbListTables(search_string = hd_pattern) %>% max()
+  #tname <- odbc::dbListTables(idbc, table_name = "hd%") %>% max() # latest one
+  tname <- my_dbListTables(idbc, search_string = "^HD\\d{4}$") |> max()
 
-  chars <- dplyr::tbl(idbc, tname) %>%
-    dplyr::select(UNITID, Name = INSTNM, State = STABBR) %>%
-    dplyr::collect()
+  chars <- tbl(idbc, tname) %>%
+    select(UNITID, Name = INSTNM, State = STABBR) %>%
+    collect()
 
   # first try exact matches
-  if (is.null(states)) {
-    states <- rep("", length(institution_names))
-  }
-  
   df <- data.frame(Name = institution_names, State = states)
 
   match_all <- chars %>%
-    dplyr::inner_join(df, by = c("Name", "State"))
+    inner_join(df)
 
   # match on name
   match_name <- df %>%
-    dplyr::anti_join(match_all, by = "Name") %>%
-    dplyr::select(Name) %>%
-    dplyr::inner_join(chars, by = "Name") %>%
+    anti_join(match_all) %>%
+    select(Name) %>%
+    inner_join(chars) %>%
     # remove names with more than one state
-    dplyr::group_by(Name) %>%
-    dplyr::mutate(N = dplyr::n()) %>%
-    dplyr::ungroup() %>%
-    dplyr::filter(N == 1) %>%
-    dplyr::select(-N)
+    group_by(Name) %>%
+    mutate(N = n()) %>%
+    ungroup() %>%
+    filter(N == 1) %>%
+    select(-N)
 
   rbind(match_all, match_name) %>% return()
 }

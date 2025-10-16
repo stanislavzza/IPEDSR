@@ -4,10 +4,12 @@
 \alias{get_employees}
 \title{Get employees}
 \usage{
-get_employees(UNITIDs = NULL)
+get_employees(idbc, UNITIDs = 218070)
 }
 \arguments{
-\item{UNITIDs}{an array of UNITIDs, or NULL. If NULL, uses configured default_unitid.}
+\item{idbc}{A database connector}
+
+\item{UNITIDs}{an array of UNITIDs, defaulting to Furman}
 }
 \value{
 a dataframe with employee information

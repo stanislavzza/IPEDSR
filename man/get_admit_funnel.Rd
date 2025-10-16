@@ -4,12 +4,12 @@
 \alias{get_admit_funnel}
 \title{Admit Funnel}
 \usage{
-get_admit_funnel(UNITIDs = NULL)
+get_admit_funnel(idbc, UNITIDs = NULL)
 }
 \arguments{
-\item{UNITIDs}{optional list of UNITIDs to filter to. If NULL, uses configured default_unitid.}
-
 \item{idbc}{database connector}
+
+\item{UNITIDs}{optional list of UNITIDs to filter to}
 }
 \description{
 Admit Funnel
