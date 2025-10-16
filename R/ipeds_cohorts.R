@@ -435,15 +435,14 @@ get_fa_info <- function(UNITIDs = NULL){
 
   for(tname_prefix in tname_prefixes) {
     Year <- 2000 + as.integer(substr(tname_prefix,4,5))
-    print(Year)
 
     tname_set <- tnames[ stringr::str_detect(tnames, tname_prefix)]
 
     # start by joining all the tables in the set
     df <- dplyr::tbl(idbc,tname_set[1])
 
-    if(length(tname_set) == 2) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[2]))
-    if(length(tname_set) == 3) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[3]))
+    if(length(tname_set) == 2) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[2]), by = "UNITID")
+    if(length(tname_set) == 3) df <- df %>% dplyr::left_join(dplyr::tbl(idbc,tname_set[3]), by = "UNITID")
 
     if(Year < 2011) { ############ Old ones lacked some data
 
