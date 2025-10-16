@@ -224,10 +224,10 @@ get_ipeds_faculty_salaries <- function(UNITIDs = NULL, years = NULL) {
 
   # Use survey registry for pattern (more maintainable)
   sal_pattern <- get_survey_pattern("salaries")
-  tnames <- data.frame(Table = my_dbListTables(search_string = sal_pattern)) |>
-            dplyr::mutate(Year = as.integer(substr(Table, 4,7)) - 1,
-                   Suffix = substr(Table, 9,12)) |>
-            dplyr::filter( (Year < 2011 & Suffix == "a") | (Year >= 2011 & Suffix == "is"))
+  tnames <- data.frame(Table = my_dbListTables(search_string = sal_pattern)) %>%
+            dplyr::mutate(Year = as.integer(substr(Table, 4,7)),
+                   Suffix = substr(Table, 9,12)) %>%
+            dplyr::filter( (Year < 2012 & Suffix == "a") | (Year >= 2012 & Suffix == "is"))
 
   # if necessary, filter to the specified years
   if(!is.null(years)) {
@@ -251,22 +251,22 @@ get_ipeds_faculty_salaries <- function(UNITIDs = NULL, years = NULL) {
       df <- dplyr::tbl(idbc, tname) %>%
         dplyr::filter(UNITID %in% !!UNITIDs) %>%
         dplyr::collect() %>%
-        dplyr::mutate(Year = !!year) |>
+        dplyr::mutate(Year = !!year) %>%
         dplyr::left_join(ranks, by = "ARANK")
 
-      if(year < 2011){
-        df <- df |>
-          dplyr::left_join(contract, by = "CONTRACT") |>
-          dplyr::filter(Contract == "Equated 9-month contract") |>
+      if(year < 2012){
+        df <- df %>%
+          dplyr::left_join(contract, by = "CONTRACT") %>%
+          dplyr::filter(Contract == "Equated 9-month contract") %>%
           dplyr::select(UNITID, Year, Rank, N = EMPCNTT, AvgSalary = AVESALT)
       } else if (year < 2016) {
-        df <- df |>
+        df <- df %>%
           dplyr::select(UNITID, Year, Rank,
                  N = SATOTLT,
-                 AvgSalary = SAAVMNT) |>
+                 AvgSalary = SAAVMNT) %>%
           dplyr::mutate(AvgSalary = AvgSalary*9)
       } else {
-        df <- df |>
+        df <- df %>%
           dplyr::select(UNITID, Year, Rank,
                  N = SAINSTT,
                  AvgSalary = SAEQ9AT)
