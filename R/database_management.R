@@ -44,6 +44,7 @@ get_ipeds_downloads_path <- function() {
 #' @export
 ipeds_database_exists <- function() {
   db_path <- get_ipeds_db_path()
+  db_path <- path.expand(db_path)  # Expand ~ to full path
   
   if (!file.exists(db_path)) {
     return(FALSE)
@@ -53,7 +54,7 @@ ipeds_database_exists <- function() {
   tryCatch({
     conn <- DBI::dbConnect(duckdb::duckdb(), db_path, read_only = TRUE)
     tables <- DBI::dbListTables(conn)
-    DBI::dbDisconnect(conn)
+    DBI::dbDisconnect(conn, shutdown = TRUE)
     return(length(tables) > 0)
   }, error = function(e) {
     return(FALSE)
@@ -243,6 +244,7 @@ get_ipeds_connection <- function(read_only = TRUE) {
   }
   
   db_path <- get_ipeds_db_path()
+  db_path <- path.expand(db_path)  # Expand ~ to full path
   conn <- DBI::dbConnect(duckdb::duckdb(), db_path, read_only = read_only)
   
   return(conn)

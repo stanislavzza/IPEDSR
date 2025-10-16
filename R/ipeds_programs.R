@@ -35,9 +35,6 @@ get_cips <- function(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "
 
     if(year < 2009) next # the C2006_A and C2007_A tables have different column names
 
-
-    message("Processing ", tname, " for year ", year)
-
     tdf <- dplyr::tbl(idbc, tname) %>%
       dplyr::filter(AWLEVEL == !!awlevel) # 99 is total degrees
 
