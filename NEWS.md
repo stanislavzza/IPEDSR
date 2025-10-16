@@ -91,6 +91,20 @@ This release includes 9 critical bug fixes and several API improvements that sig
   - Added `.groups = "drop"` to summarize
 - **Impact:** Function now provides helpful messages and handles errors gracefully
 
+### Bug #12: get_ipeds_faculty_salaries() Returns Empty Data Frame ✅
+- **Issue:** Function returned 0 rows/0 columns even with data present
+- **Problems:**
+  1. Implicit `left_join(ranks)` without `by` parameter → join failures
+  2. Implicit `left_join(contract)` without `by` parameter → join failures  
+  3. No error handling → silent failures
+  4. No table validation → no helpful error messages
+- **Fix:**
+  - Added explicit `by = "ARANK"` to ranks join
+  - Added explicit `by = "CONTRACT"` to contract join
+  - Added `tryCatch()` with error reporting
+  - Added table existence check with warning
+- **Impact:** Function now works correctly, returns salary data reliably
+
 ---
 
 ## API Enhancements
@@ -249,11 +263,11 @@ standardize_table_names_to_lowercase(verbose = TRUE)
 
 ## Statistics
 
-- **11 bugs fixed**
+- **12 bugs fixed**
 - **2 new exported functions**
-- **11 documentation guides created**
+- **12 documentation guides created**
 - **8 diagnostic/test tools created**
-- **~400 lines of code improved**
+- **~430 lines of code improved**
 - **All tests passing** ✅
 
 ---

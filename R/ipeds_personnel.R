@@ -219,6 +219,12 @@ get_ipeds_faculty_salaries <- function(UNITIDs = NULL, years = NULL) {
     tnames <- tnames %>%
       dplyr::filter(Year %in% !!years)
   }
+  
+  # Check if any tables were found
+  if (nrow(tnames) == 0) {
+    warning("No SAL tables found matching criteria. Faculty salary data may not be imported.")
+    return(data.frame())
+  }
 
   out <- data.frame()
 
@@ -226,32 +232,36 @@ get_ipeds_faculty_salaries <- function(UNITIDs = NULL, years = NULL) {
     year = tnames$Year[i]
     tname = tnames$Table[i]
 
-    df <- dplyr::tbl(idbc, tname) %>%
-      dplyr::filter(UNITID %in% !!UNITIDs) %>%
-      dplyr::collect() %>%
-      dplyr::mutate(Year = !!year) |>
-      dplyr::left_join(ranks)
+    tryCatch({
+      df <- dplyr::tbl(idbc, tname) %>%
+        dplyr::filter(UNITID %in% !!UNITIDs) %>%
+        dplyr::collect() %>%
+        dplyr::mutate(Year = !!year) |>
+        dplyr::left_join(ranks, by = "ARANK")
 
-    if(year < 2011){
-      df <- df |>
-        dplyr::left_join(contract) |>
-        dplyr::filter(Contract == "Equated 9-month contract") |>
-        dplyr::select(UNITID, Year, Rank, N = EMPCNTT, AvgSalary = AVESALT)
-    } else if (year < 2016) {
-      df <- df |>
-        dplyr::select(UNITID, Year, Rank,
-               N = SATOTLT,
-               AvgSalary = SAAVMNT) |>
-        dplyr::mutate(AvgSalary = AvgSalary*9)
-    } else {
-      df <- df |>
-        dplyr::select(UNITID, Year, Rank,
-               N = SAINSTT,
-               AvgSalary = SAEQ9AT)
-    }
+      if(year < 2011){
+        df <- df |>
+          dplyr::left_join(contract, by = "CONTRACT") |>
+          dplyr::filter(Contract == "Equated 9-month contract") |>
+          dplyr::select(UNITID, Year, Rank, N = EMPCNTT, AvgSalary = AVESALT)
+      } else if (year < 2016) {
+        df <- df |>
+          dplyr::select(UNITID, Year, Rank,
+                 N = SATOTLT,
+                 AvgSalary = SAAVMNT) |>
+          dplyr::mutate(AvgSalary = AvgSalary*9)
+      } else {
+        df <- df |>
+          dplyr::select(UNITID, Year, Rank,
+                 N = SAINSTT,
+                 AvgSalary = SAEQ9AT)
+      }
 
-    out <- rbind(out, df)
-
+      out <- rbind(out, df)
+      
+    }, error = function(e) {
+      warning(paste("Failed to process table", tname, "for year", year, ":", e$message))
+    })
   }
   return(out)
 }
