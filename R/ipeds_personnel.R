@@ -21,10 +21,10 @@ get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
 
   for(tname in tnames) {
 
-    # use the fall near, not the year on the table name
-    year <- as.integer(substr(tname, 2,5)) -1
+    # Extract year from table name for filtering logic
+    year_from_name <- as.integer(substr(tname, 2,5))
 
-    if(year < 2011 & !before_2011) next # skip old data unless directed otherwise
+    if(year_from_name < 2011 & !before_2011) next # skip old data unless directed otherwise
 
     df <- dplyr::tbl(idbc, tname)
 
@@ -71,12 +71,29 @@ get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
       dplyr::select(UNITID, Row, Column, Value = Codevalue) %>%
       # Suppress warnings about NAs - this is expected for missing/invalid data
       dplyr::mutate(Value = suppressWarnings(as.integer(Value)))
+    
+    # Extract the actual year from the YEAR column in the data
+    # The data contains the correct year, not table_name - 1
+    year <- unique(df$YEAR)
+    if(length(year) != 1) {
+      warning("Multiple or no YEAR values in table ", tname, ". Using year from table name.")
+      year <- year_from_name
+    }
 
     # combine it all - specify join keys to avoid messages and ensure correct joins
-    df <- df1 %>%
-       dplyr::left_join(df0, by = c("UNITID", "Row")) %>%
-       dplyr::left_join(df2, by = c("UNITID", "Row")) %>%
-       dplyr::mutate(Year = year)
+    # When there's no FACSTAT column, df0 only has UNITID (no Row column)
+    if( !is.na( match("FACSTAT", names(df)) )) {
+      # Has FACSTAT - df0 has both UNITID and Row
+      df <- df1 %>%
+         dplyr::left_join(df0, by = c("UNITID", "Row")) %>%
+         dplyr::left_join(df2, by = c("UNITID", "Row")) %>%
+         dplyr::mutate(Year = year)
+    } else {
+      # No FACSTAT - df0 only has UNITID, no Tenure column created
+      df <- df1 %>%
+         dplyr::left_join(df2, by = c("UNITID", "Row")) %>%
+         dplyr::mutate(Year = year)
+    }
 
     if (is.null(out)) {
       out <- df
