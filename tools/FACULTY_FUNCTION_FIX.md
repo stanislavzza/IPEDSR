@@ -183,7 +183,17 @@ head(result)
 # Returns properly formatted faculty data ✅
 ```
 
-### Test Script
+### Test Scr> ipeds_get_enrollment()
+Joining with `by = join_by(StudentTypeCode)`
+# A tibble: 20 × 11
+   UNITID StudentTypeCode Total   Men Women White Black Hispanic NRAlien  Year
+    <int>           <dbl> <int> <int> <int> <int> <int>    <int>   <int> <int>
+ 1 218070               1  3359  1318  2041  2884   211       34      33  2004
+ 2 218070               1  3221  1319  1902  2737   198       41      41  2005
+ 3 218070               1  3009  1255  1754  2546   194       36      53  2006
+ 4 218070               1  2951  1255  1696  2434   203       40      65  2007
+ 5 218070               1  2977  1230  1747  2412   214       48      69  2008
+ipt
 ```r
 # Test get_faculty() with fixes
 library(IPEDSR)

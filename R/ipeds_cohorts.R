@@ -175,7 +175,7 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 
   # add code descriptions
   out <- out %>%
-    dplyr::left_join(student_codes)
+    dplyr::left_join(student_codes, by = "StudentTypeCode")
 
   return(out)
 }
