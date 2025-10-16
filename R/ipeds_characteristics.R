@@ -15,8 +15,9 @@ get_characteristics <- function(year = NULL, UNITIDs = NULL, labels = TRUE){
     UNITIDs <- get_default_unitid()
   }
 
-  # find all the tables
-  tnames <- my_dbListTables(search_string = "^hd\\d{4}$")
+  # Use survey registry to get directory tables
+  hd_pattern <- get_survey_pattern("directory")
+  tnames <- my_dbListTables(search_string = hd_pattern)
   years_available <- as.integer(substr(tnames, 3,6))
 
   # get the most recent year unless otherwise specified

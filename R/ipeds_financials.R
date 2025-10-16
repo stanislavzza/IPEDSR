@@ -10,8 +10,9 @@ get_finances <- function(UNITIDs = NULL){
   
   idbc <- ensure_connection()
 
-  # find all the tables
-  tnames <- my_dbListTables(search_string = "^f\\d{4}_f2")
+  # Use survey registry to get finance tables
+  fin_pattern <- get_survey_pattern("finances")
+  tnames <- my_dbListTables(search_string = fin_pattern)
 
   out <- data.frame()
 
@@ -125,8 +126,9 @@ get_tuition <- function(UNITIDs = NULL){
   
   idbc <- ensure_connection()
 
-  # find all the tables
-  tnames <- my_dbListTables(search_string = "^ic\\d{4}_ay$")
+  # Use survey registry to get tuition/fees tables
+  tuition_pattern <- get_survey_pattern("tuition_fees")
+  tnames <- my_dbListTables(search_string = tuition_pattern)
 
   out <- data.frame()
 

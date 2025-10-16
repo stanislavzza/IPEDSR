@@ -336,8 +336,9 @@ get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
 find_unitids <- function(institution_names, states = NULL){
   idbc <- ensure_connection()
 
-  #tname <- odbc::dbListTables(idbc, table_name = "hd%") %>% max() # latest one
-  tname <- my_dbListTables(search_string = "^hd\\d{4}$") %>% max()
+  # Use survey registry to get most recent directory table
+  hd_pattern <- get_survey_pattern("directory")
+  tname <- my_dbListTables(search_string = hd_pattern) %>% max()
 
   chars <- dplyr::tbl(idbc, tname) %>%
     dplyr::select(UNITID, Name = INSTNM, State = STABBR) %>%

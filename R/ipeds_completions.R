@@ -45,8 +45,9 @@ get_grad_rates <- function(UNITIDs = NULL){
 
   # expects ef<Year>d.csv
 
-  # find all the tables
-  tnames <- my_dbListTables(search_string = "^gr20\\d\\d$")
+  # Use survey registry to get graduation rates tables
+  gr_pattern <- get_survey_pattern("graduation_rates")
+  tnames <- my_dbListTables(search_string = gr_pattern)
 
   out <- data.frame()
 
@@ -131,8 +132,9 @@ get_grad_demo_rates <- function(UNITIDs = NULL){
     dplyr::if_else(is.nan(x), NA_real_, x)
   }
 
-  # find all the tables
-  tnames <- my_dbListTables(search_string = "^gr20\\d\\d$")
+  # Use survey registry to get graduation rates tables
+  gr_pattern <- get_survey_pattern("graduation_rates")
+  tnames <- my_dbListTables(search_string = gr_pattern)
 
   out <- data.frame()
 
@@ -201,8 +203,9 @@ get_grad_pell_rates <- function(UNITIDs = NULL){
     dplyr::if_else(is.nan(x), NA_real_, x)
   }
 
-  # find all the tables
-  tnames <- my_dbListTables(search_string = "^gr20\\d\\d_pell_ssl$")
+  # Use survey registry to get graduation pell rates tables
+  gr_pell_pattern <- get_survey_pattern("graduation_pell")
+  tnames <- my_dbListTables(search_string = gr_pell_pattern)
 
   out <- data.frame()
 

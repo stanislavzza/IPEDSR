@@ -107,9 +107,9 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
     51,"Part-time students, Undergraduate, Non-degree/certificate-seeking",
     52,"Part-time students, Graduate")
 
-  # find all the tables
-  #tnames <- odbc::dbListTables(idbc, table_name = "ef%a")
-  tnames <- my_dbListTables(search_string = "^ef\\d{4}a$")
+  # Use survey registry to get fall enrollment tables
+  ef_pattern <- get_survey_pattern("enrollment_fall")
+  tnames <- my_dbListTables(search_string = ef_pattern)
 
   out <- data.frame()
 
@@ -194,9 +194,10 @@ get_retention <- function(UNITIDs = NULL){
   }
   
   idbc <- ensure_connection()
-  # find all the tables
-  # tnames <- odbc::dbListTables(idbc, table_name = "ef20__D")
-  tnames <- my_dbListTables(search_string = "^ef\\d{4}d$")
+  
+  # Use survey registry to get enrollment residence tables
+  ef_res_pattern <- get_survey_pattern("enrollment_residence")
+  tnames <- my_dbListTables(search_string = ef_res_pattern)
 
   out <- data.frame()
 
@@ -262,9 +263,9 @@ get_admit_funnel <- function(UNITIDs = NULL){
   # output data
   out <- data.frame()
 
-  # find all the tables before 2014
-  #tnames <- odbc::dbListTables(idbc, table_name = "ic____", table_type = "TABLE")
-  tnames <- my_dbListTables(search_string = "^ic\\d{4}$")
+  # Use survey registry to get admissions pre-2014 tables
+  ic_pattern <- get_survey_pattern("admissions_pre2014")
+  tnames <- my_dbListTables(search_string = ic_pattern)
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -332,10 +333,9 @@ get_admit_funnel <- function(UNITIDs = NULL){
     out <- rbind(out, df)
   }
 
-  # after 2014
-  # find all the tables before 2014
-  #tnames <- odbc::dbListTables(idbc, table_name = "adm____", table_type = "TABLE")
-  tnames <- my_dbListTables(search_string = "^adm\\d{4}$")
+  # Use survey registry to get admissions 2014+ tables
+  adm_pattern <- get_survey_pattern("admissions_2014plus")
+  tnames <- my_dbListTables(search_string = adm_pattern)
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -422,9 +422,9 @@ get_fa_info <- function(UNITIDs = NULL){
   # df <- read_csv("data/IPEDS/2017/sfa1617.csv", guess_max = 5000) %>%
   # adds a given year to the df
 
-  # find all the tables
-  #tnames <- odbc::dbListTables(idbc, table_name = "sfa%")
-  tnames <- my_dbListTables(search_string = "^sfa\\d{4}")
+  # Use survey registry to get financial aid tables
+  sfa_pattern <- get_survey_pattern("financial_aid")
+  tnames <- my_dbListTables(search_string = sfa_pattern)
 
   # leave out the sfav ones
   #tnames <- tnames[!str_detect(tnames,"SFAV")]
@@ -437,7 +437,7 @@ get_fa_info <- function(UNITIDs = NULL){
     Year <- 2000 + as.integer(substr(tname_prefix,4,5))
     print(Year)
 
-    tname_set <- tnames[ str_detect(tnames, tname_prefix)]
+    tname_set <- tnames[ stringr::str_detect(tnames, tname_prefix)]
 
     # start by joining all the tables in the set
     df <- dplyr::tbl(idbc,tname_set[1])

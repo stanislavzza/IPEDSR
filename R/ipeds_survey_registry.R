@@ -160,22 +160,11 @@ IPEDS_SURVEY_REGISTRY <- list(
     description = "Institutional Characteristics - Directory Information (HD)",
     table_format = "hd<YYYY>",
     notes = "Core directory info: name, address, control, sector, etc."
-  ),
-  
-  # Metadata Tables
-  valuesets = list(
-    pattern = "^valuesets\\d\\d$",
-    description = "Value Sets (Code to Label Mappings)",
-    table_format = "valuesets<YY>",
-    notes = "Two-digit year (e.g., valuesets23 for 2023)"
-  ),
-  
-  vartable = list(
-    pattern = "^vartable\\d\\d$",
-    description = "Variable Definitions and Descriptions",
-    table_format = "vartable<YY>",
-    notes = "Two-digit year (e.g., vartable23 for 2023)"
   )
+  
+  # Note: valuesets## tables are original source data, not survey data
+  # For code-to-label mappings, use valuesets_all table directly
+  # For variable definitions, use vartable## or vartable_all tables
 )
 
 

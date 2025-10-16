@@ -13,14 +13,9 @@ get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
   
   idbc <- ensure_connection()
 
-  # find all the tables
-  # through 2011, the tables are sYYYY_f, and after that
-  # it's sYYYY_is
-  #tnames1 <- odbc::dbListTables(idbc, table_name = "s_____f", table_type = "TABLE")
-  tnames1 <- my_dbListTables(search_string = "^s\\d{4}_f$")
-  #tnames2 <- odbc::dbListTables(idbc, table_name = "s_____is", table_type = "TABLE")
-  tnames2 <- my_dbListTables(search_string = "^s\\d{4}_is$")
-  tnames <- c(tnames1, tnames2)
+  # Use survey registry to get faculty staff tables
+  faculty_pattern <- get_survey_pattern("faculty_staff")
+  tnames <- my_dbListTables(search_string = faculty_pattern)
 
   out <- NULL
 
@@ -120,9 +115,9 @@ get_employees <- function(UNITIDs = NULL){
   
   idbc <- ensure_connection()
 
-  # find all the tables
-  #tnames <- odbc::dbListTables(idbc, table_name = "EAP%")
-  tnames <- my_dbListTables(search_string = "^eap\\d{4}$")
+  # Use survey registry to get employee tables
+  emp_pattern <- get_survey_pattern("employees")
+  tnames <- my_dbListTables(search_string = emp_pattern)
   
   if (length(tnames) == 0) {
     warning("No EAP tables found in database. Employee data may not be imported.")
