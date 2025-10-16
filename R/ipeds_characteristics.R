@@ -16,7 +16,7 @@ get_characteristics <- function(year = NULL, UNITIDs = NULL, labels = TRUE){
   }
 
   # find all the tables
-  tnames <- my_dbListTables(search_string = "^HD\\d{4}$")
+  tnames <- my_dbListTables(search_string = "^hd\\d{4}$")
   years_available <- as.integer(substr(tnames, 3,6))
 
   # get the most recent year unless otherwise specified
@@ -29,7 +29,7 @@ get_characteristics <- function(year = NULL, UNITIDs = NULL, labels = TRUE){
     }
 
     # check if the year is in the table names
-    tname <- paste0("HD", year)
+    tname <- paste0("hd", year)
   }
 
   if(labels == TRUE){

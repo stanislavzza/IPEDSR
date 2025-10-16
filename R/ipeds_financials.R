@@ -11,7 +11,7 @@ get_finances <- function(UNITIDs = NULL){
   idbc <- ensure_connection()
 
   # find all the tables
-  tnames <- my_dbListTables(search_string = "^F\\d{4}_F2")
+  tnames <- my_dbListTables(search_string = "^f\\d{4}_f2")
 
   out <- data.frame()
 
@@ -126,7 +126,7 @@ get_tuition <- function(UNITIDs = NULL){
   idbc <- ensure_connection()
 
   # find all the tables
-  tnames <- my_dbListTables(search_string = "^IC\\d{4}_AY$")
+  tnames <- my_dbListTables(search_string = "^ic\\d{4}_ay$")
 
   out <- data.frame()
 

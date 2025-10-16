@@ -109,7 +109,7 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
 
   # find all the tables
   #tnames <- odbc::dbListTables(idbc, table_name = "ef%a")
-  tnames <- my_dbListTables(search_string = "^EF\\d{4}A$")
+  tnames <- my_dbListTables(search_string = "^ef\\d{4}a$")
 
   out <- data.frame()
 
@@ -119,7 +119,7 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
     year <- as.integer(substr(tname, 3,6))
 
     # the varnames switched in 2008
-    if(tname <= "EF2007A"){
+    if(tname <= "ef2007a"){
 
       tdf <- dplyr::tbl(idbc, tname) %>%
         dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
@@ -132,7 +132,7 @@ ipeds_get_enrollment <- function(UNITIDs = NULL, StudentTypeCode = 1){
                Black = EFRACE18,
                Hispanic = EFRACE21,
                NRAlien = EFRACE17)
-    } else if(tname <= "EF2009A"){
+    } else if(tname <= "ef2009a"){
 
       tdf <- dplyr::tbl(idbc, tname) %>%
         dplyr::filter( EFALEVEL %in% !!StudentTypeCode) %>%
@@ -196,7 +196,7 @@ get_retention <- function(UNITIDs = NULL){
   idbc <- ensure_connection()
   # find all the tables
   # tnames <- odbc::dbListTables(idbc, table_name = "ef20__D")
-  tnames <- my_dbListTables(search_string = "^EF\\d{4}D$")
+  tnames <- my_dbListTables(search_string = "^ef\\d{4}d$")
 
   out <- data.frame()
 
@@ -264,7 +264,7 @@ get_admit_funnel <- function(UNITIDs = NULL){
 
   # find all the tables before 2014
   #tnames <- odbc::dbListTables(idbc, table_name = "ic____", table_type = "TABLE")
-  tnames <- my_dbListTables(search_string = "^IC\\d{4}$")
+  tnames <- my_dbListTables(search_string = "^ic\\d{4}$")
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -335,7 +335,7 @@ get_admit_funnel <- function(UNITIDs = NULL){
   # after 2014
   # find all the tables before 2014
   #tnames <- odbc::dbListTables(idbc, table_name = "adm____", table_type = "TABLE")
-  tnames <- my_dbListTables(search_string = "^ADM\\d{4}$")
+  tnames <- my_dbListTables(search_string = "^adm\\d{4}$")
   for(tname in tnames) {
 
     # use the fall near, not the year on the table name
@@ -424,7 +424,7 @@ get_fa_info <- function(UNITIDs = NULL){
 
   # find all the tables
   #tnames <- odbc::dbListTables(idbc, table_name = "sfa%")
-  tnames <- my_dbListTables(search_string = "^SFA\\d{4}")
+  tnames <- my_dbListTables(search_string = "^sfa\\d{4}")
 
   # leave out the sfav ones
   #tnames <- tnames[!str_detect(tnames,"SFAV")]

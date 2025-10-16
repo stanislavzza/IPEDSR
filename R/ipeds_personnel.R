@@ -17,9 +17,9 @@ get_faculty <- function(UNITIDs = NULL, before_2011 = FALSE){
   # through 2011, the tables are sYYYY_f, and after that
   # it's sYYYY_is
   #tnames1 <- odbc::dbListTables(idbc, table_name = "s_____f", table_type = "TABLE")
-  tnames1 <- my_dbListTables(search_string = "^S\\d{4}_F$")
+  tnames1 <- my_dbListTables(search_string = "^s\\d{4}_f$")
   #tnames2 <- odbc::dbListTables(idbc, table_name = "s_____is", table_type = "TABLE")
-  tnames2 <- my_dbListTables(search_string = "^S\\d{4}_IS$")
+  tnames2 <- my_dbListTables(search_string = "^s\\d{4}_is$")
   tnames <- c(tnames1, tnames2)
 
   out <- NULL
@@ -122,7 +122,7 @@ get_employees <- function(UNITIDs = NULL){
 
   # find all the tables
   #tnames <- odbc::dbListTables(idbc, table_name = "EAP%")
-  tnames <- my_dbListTables(search_string = "^EAP\\d{4}$")
+  tnames <- my_dbListTables(search_string = "^eap\\d{4}$")
   
   if (length(tnames) == 0) {
     warning("No EAP tables found in database. Employee data may not be imported.")
@@ -209,10 +209,12 @@ get_ipeds_faculty_salaries <- function(UNITIDs = NULL, years = NULL) {
                           "Equated 9-month contract")
   )
 
-  tnames <- data.frame(Table = my_dbListTables(search_string = "^SAL\\d{4}_.+$")) |>
+  # Use survey registry for pattern (more maintainable)
+  sal_pattern <- get_survey_pattern("salaries")
+  tnames <- data.frame(Table = my_dbListTables(search_string = sal_pattern)) |>
             dplyr::mutate(Year = as.integer(substr(Table, 4,7)) - 1,
                    Suffix = substr(Table, 9,12)) |>
-            dplyr::filter( (Year < 2011 & Suffix == "A") | (Year >= 2011 & Suffix == "IS"))
+            dplyr::filter( (Year < 2011 & Suffix == "a") | (Year >= 2011 & Suffix == "is"))
 
   # if necessary, filter to the specified years
   if(!is.null(years)) {

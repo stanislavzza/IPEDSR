@@ -1,11 +1,13 @@
 #' Find matching tables
-#' @param search_string A string to search for in the table names
+#' @param search_string A regex pattern to search for in the table names (case-sensitive)
 #' @return A character vector of table names that match the search string
 #' @export
 my_dbListTables <- function(search_string){
   idbc <- ensure_connection()
   tables <- DBI::dbListTables(idbc)
-  tables <- tables[stringr::str_detect(toupper(tables), search_string)]
+  # Match against actual table names (lowercase in current database)
+  # search_string should be a lowercase regex pattern
+  tables <- tables[stringr::str_detect(tables, search_string)]
   return(tables)
 }
 
@@ -239,7 +241,7 @@ get_valueset <- function(my_table, year = NULL, variable_name = NULL){
 get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
   idbc <- ensure_connection()
 
-  table_name <- toupper(table_name)
+  table_name <- tolower(table_name)
   values_tname <- stringr::str_c("valuesets", year2)
   vars_tname <- stringr::str_c("vartable", year2)
 
@@ -335,7 +337,7 @@ find_unitids <- function(institution_names, states = NULL){
   idbc <- ensure_connection()
 
   #tname <- odbc::dbListTables(idbc, table_name = "hd%") %>% max() # latest one
-  tname <- my_dbListTables(search_string = "^HD\\d{4}$") %>% max()
+  tname <- my_dbListTables(search_string = "^hd\\d{4}$") %>% max()
 
   chars <- dplyr::tbl(idbc, tname) %>%
     dplyr::select(UNITID, Name = INSTNM, State = STABBR) %>%

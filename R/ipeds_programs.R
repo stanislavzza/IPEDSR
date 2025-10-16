@@ -17,7 +17,7 @@ get_cips <- function(UNITIDs = NULL, years = NULL, cip_codes = NULL, awlevel = "
   idbc <- ensure_connection()
 
   # find all the tables
-  tnames <- my_dbListTables(search_string = "^C\\d{4}_A$")
+  tnames <- my_dbListTables(search_string = "^c\\d{4}_a$")
 
   out <- data.frame()
 
@@ -70,7 +70,7 @@ get_cipcodes <- function(digits = NULL){
   idbc <- ensure_connection()
 
   # find the most recent values table
-  tname <- my_dbListTables(search_string = "^VALUESETS\\d\\d$") %>% max()
+  tname <- my_dbListTables(search_string = "^valuesets\\d\\d$") %>% max()
 
   # get the cipcodes
   tdf <- dplyr::tbl(idbc,tname) %>%
@@ -119,7 +119,7 @@ get_cip2_counts <- function(awlevel = "05", UNITIDs = NULL, first_only = FALSE){
   idbc <- ensure_connection()
 
   # find all the tables
-  tnames <- my_dbListTables(search_string = "^C20\\d\\d_A$")
+  tnames <- my_dbListTables(search_string = "^c20\\d\\d_a$")
 
   out <- data.frame()
 
