@@ -1,18 +1,18 @@
 #' Get completions by school and CIP
-#' @param years The years of data to retrieve; the table name minus one. Years before 2007 are invalid.
+#' @param years The years of data to retrieve, or NULL for all available years.
 #' @param UNITIDs if NULL, uses configured default_unitid
 #' @param awlevel Award level, defaults to "05" for Bachelors
 #' @return a dataframe with institutional characteristics, year, and graduates by CIP
 #' @details The CIP code is 2-digit for economy of results
 #' @export
-get_ipeds_completions <- function(years, UNITIDs = NULL, awlevel = "05"){
+get_ipeds_completions <- function(years = NULL, UNITIDs = NULL, awlevel = "05"){
   # Use configured default UNITID if none provided
   if (is.null(UNITIDs)) {
     UNITIDs <- get_default_unitid()
   }
   
   # get grads
-  grads <- get_cips(UNITIDs, years) %>%
+  grads <- get_cips(UNITIDs, years, awlevel = awlevel) %>%
     dplyr::filter(MAJORNUM == 1) %>%
     dplyr::inner_join(get_cipcodes(digits = 2), by = "CIPCODE") %>%
     dplyr::group_by(Year, UNITID, CIPCODE, Subject) %>%

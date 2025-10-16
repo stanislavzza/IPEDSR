@@ -39,26 +39,29 @@ get_ipeds_downloads_path <- function() {
 }
 
 #' Check if IPEDS database exists and is valid
-#' @description Checks if the database file exists and can be opened
+#' @description Checks if the database file exists and has a reasonable size
 #' @return Logical indicating if database is ready to use
 #' @export
 ipeds_database_exists <- function() {
   db_path <- get_ipeds_db_path()
   db_path <- path.expand(db_path)  # Expand ~ to full path
   
+  # First check: does file exist?
   if (!file.exists(db_path)) {
     return(FALSE)
   }
   
-  # Try to connect to verify it's a valid database
-  tryCatch({
-    conn <- DBI::dbConnect(duckdb::duckdb(), db_path, read_only = TRUE)
-    tables <- DBI::dbListTables(conn)
-    DBI::dbDisconnect(conn, shutdown = TRUE)
-    return(length(tables) > 0)
-  }, error = function(e) {
+  # Second check: is file size reasonable? (should be > 1GB for valid database)
+  file_size <- file.info(db_path)$size
+  if (is.na(file_size) || file_size < 1e9) {
+    warning("Database file exists but is too small (", file_size, " bytes). May be corrupted.")
     return(FALSE)
-  })
+  }
+  
+  # Don't try to connect here - that can fail due to locks or other transient issues
+  # If file exists and is large enough, assume it's valid
+  # Connection will be tested when actually opening the database
+  return(TRUE)
 }
 
 #' Download and setup IPEDS database
@@ -69,8 +72,23 @@ ipeds_database_exists <- function() {
 #' @export
 setup_ipeds_database <- function(force = FALSE, quiet = FALSE) {
   db_path <- get_ipeds_db_path()
+  db_path <- path.expand(db_path)  # Expand ~ to full path
   
-  # Check if database already exists and is valid
+  # CRITICAL CHECK: If file already exists and force is FALSE, DO NOT re-download
+  if (!force) {
+    if (file.exists(db_path)) {
+      file_size <- file.info(db_path)$size
+      if (!is.na(file_size) && file_size > 1e9) {  # > 1GB means it's probably valid
+        if (!quiet) {
+          message("IPEDS database already exists at: ", db_path)
+          message("File size: ", round(file_size / 1e9, 2), " GB")
+        }
+        return(TRUE)
+      }
+    }
+  }
+  
+  # Additional check using the ipeds_database_exists() function
   if (!force && ipeds_database_exists()) {
     if (!quiet) {
       message("IPEDS database already exists and is valid at: ", db_path)
