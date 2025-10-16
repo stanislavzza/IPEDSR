@@ -234,18 +234,21 @@ get_valueset <- function(my_table, year = NULL, variable_name = NULL){
 #' @param table_name The complete name of the table including year
 #' @param year2 A two-character year, as in 20XX, so 2020 is "20" and 2021 is "21"
 #' @param UNITIDs an optional list of IDs, or NULL for everything
-#' @details The year2 input is used to find the var and value tables needed
-#'          to upack the codes into text
+#' @details Uses vartable_all and valuesets_all with year filtering to get
+#'          year-specific variable definitions and code mappings.
 #' @return A dataframe with human-readable data.
 #' @export
 get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
   idbc <- ensure_connection()
 
-  table_name <- tolower(table_name)
-  values_tname <- stringr::str_c("valuesets", year2)
-  vars_tname <- stringr::str_c("vartable", year2)
+  table_name_lower <- tolower(table_name)
+  table_name_upper <- toupper(table_name)
+  
+  # Convert 2-digit year to 4-digit year for filtering _all tables
+  year4 <- as.integer(year2)
+  year4 <- ifelse(year4 <= 50, 2000 + year4, 1900 + year4)
 
-  my_data   <- dplyr::tbl(idbc, table_name) %>%
+  my_data   <- dplyr::tbl(idbc, table_name_lower) %>%
                dplyr::select(-dplyr::starts_with("IALIAS"),
                       -dplyr::starts_with("DUNS")) # these are Blobs that cause index failure
 
@@ -257,10 +260,10 @@ get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
   my_data <- my_data %>%
     dplyr::collect()
 
-  # get any variables that need to be interpolated from numbers to characters,
-  # e.g. 1 = public, 2 = private
-  my_values <- dplyr::tbl(idbc,values_tname) %>%
-    dplyr::filter(TableName == !!table_name) %>%
+  # Get year-specific value mappings from valuesets_all
+  # This contains code-to-label mappings (e.g., 1 = "Public", 2 = "Private")
+  my_values <- dplyr::tbl(idbc, "valuesets_all") %>%
+    dplyr::filter(TableName == !!table_name_upper & YEAR == !!year4) %>%
     dplyr::select(varName, Codevalue, valueLabel) %>%
     dplyr::collect()
 
@@ -277,13 +280,13 @@ get_ipeds_table <- function(table_name, year2, UNITIDs = NULL){
     my_data[[vname]] <- lookups$valueLabel[match(my_data[[vname]], lookups$Codevalue )]
   }
 
-  # the column names are meaningless, so let's change those to something better
-  # using the IPEDS column name index here:
-  my_cols <- dplyr::tbl(idbc,vars_tname) %>%
-      dplyr::select(varName, varTitle, TableName, longDescription) %>%
-      dplyr::filter(TableName == !!table_name) %>%
+  # Get year-specific variable definitions from vartable_all
+  # This contains variable name to friendly title mappings
+  my_cols <- dplyr::tbl(idbc, "vartable_all") %>%
+      dplyr::select(varName, varTitle, TableName, longDescription, YEAR) %>%
+      dplyr::filter(TableName == !!table_name_upper & YEAR == !!year4) %>%
       dplyr::collect() %>%
-      dplyr::select(-TableName)
+      dplyr::select(-TableName, -YEAR)
 
   # match up the column names in ret_data to the descriptions and swap them
   # 1. get the column names as they are now

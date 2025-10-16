@@ -11,11 +11,12 @@
 .IPEDS_VERSION <- "2023.1"  # Version tracking for updates
 
 #' Get IPEDS database path
-#' @description Returns the path where the IPEDS database should be stored
+#' @description Returns the path where the IPEDS database should be stored.
+#' Always uses the user's persistent data directory to avoid re-downloading.
 #' @return Character string with the database path
 #' @keywords internal
 get_ipeds_db_path <- function() {
-  # Use user's data directory
+  # Use user's data directory - this is persistent across package reloads
   data_dir <- rappdirs::user_data_dir("IPEDSR", "FurmanIR")
   if (!dir.exists(data_dir)) {
     dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
