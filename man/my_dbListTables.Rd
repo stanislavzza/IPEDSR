@@ -7,7 +7,7 @@
 my_dbListTables(search_string)
 }
 \arguments{
-\item{search_string}{A string to search for in the table names}
+\item{search_string}{A regex pattern to search for in the table names (case-sensitive)}
 }
 \value{
 A character vector of table names that match the search string
