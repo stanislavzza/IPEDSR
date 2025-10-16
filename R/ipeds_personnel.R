@@ -188,8 +188,9 @@ get_employees <- function(UNITIDs = NULL){
     # add up the two staff rows
     out <- out %>%
     dplyr::group_by(Year, UNITID, Occupation, FacultyStatus) %>%
-    dplyr::summarize(N = sum(N), N_PT = sum(N_PT), .groups = "drop") %>%
-    return()
+    dplyr::summarize(N = sum(N), N_PT = sum(N_PT), .groups = "drop")
+    
+    return(out)
 }
 
 #' Faculty salaries
