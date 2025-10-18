@@ -15,4 +15,3 @@ DBI connection object
 \description{
 Internal function to get a database connection
 }
-\keyword{internal}

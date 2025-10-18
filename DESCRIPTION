@@ -34,8 +34,7 @@ Imports:
     tibble,
     tidyr,
     tools,
-    utils,
-    yaml
+    utils
 Suggests:
     testthat,
     knitr,

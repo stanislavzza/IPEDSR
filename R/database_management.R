@@ -1,14 +1,13 @@
 #' Database Management for IPEDSR
-#' 
+#'
 #' Functions to manage the IPEDS database including setup, updates, and connection management.
 
 # Global variables for package
 .ipeds_env <- new.env(parent = emptyenv())
 
 # Database configuration
-.IPEDS_DB_URL <- "https://drive.google.com/uc?export=download&id=1xS0HIGH-XhoSXPIFE9YQ8gn1OmmrzUOC&confirm=t"
-.IPEDS_DB_NAME <- "ipeds_2004-2023.duckdb"
-.IPEDS_VERSION <- "2023.1"  # Version tracking for updates
+.IPEDS_DB_URL <- "https://www.dropbox.com/scl/fi/rrevsok6nmabcjoz4b9gp/ipeds_2004-2023.duckdb?rlkey=brdhb0bxjbwhva9jm1a7j89kh&dl=0"
+.IPEDS_DB_NAME <- "ipeds.duckdb"
 
 #' Get IPEDS database path
 #' @description Returns the path where the IPEDS database should be stored.
@@ -17,25 +16,13 @@
 #' @keywords internal
 get_ipeds_db_path <- function() {
   # Use user's data directory - this is persistent across package reloads
-  data_dir <- rappdirs::user_data_dir("IPEDSR", "FurmanIR")
+  data_dir <- rappdirs::user_data_dir("database","IPEDSR" )
   if (!dir.exists(data_dir)) {
     dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
   }
+  # normalize file path with slashes
+  data_dir <- str_replace_all(data_dir, "\\\\", "/")
   file.path(data_dir, .IPEDS_DB_NAME)
-}
-
-#' Get persistent downloads directory path
-#' @description Gets the path to the persistent downloads directory (same location as database)
-#' @return Path to downloads directory
-#' @export
-get_ipeds_downloads_path <- function() {
-  # Use same data directory as database
-  data_dir <- rappdirs::user_data_dir("IPEDSR", "FurmanIR")
-  downloads_dir <- file.path(data_dir, "downloads")
-  if (!dir.exists(downloads_dir)) {
-    dir.create(downloads_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-  return(downloads_dir)
 }
 
 #' Check if IPEDS database exists and is valid
@@ -44,41 +31,57 @@ get_ipeds_downloads_path <- function() {
 #' @export
 ipeds_database_exists <- function() {
   db_path <- get_ipeds_db_path()
-  db_path <- path.expand(db_path)  # Expand ~ to full path
-  
-  # First check: does file exist?
-  if (!file.exists(db_path)) {
-    return(FALSE)
-  }
-  
-  # Second check: is file size reasonable? (should be > 1GB for valid database)
-  file_size <- file.info(db_path)$size
-  if (is.na(file_size) || file_size < 1e9) {
-    warning("Database file exists but is too small (", file_size, " bytes). May be corrupted.")
-    return(FALSE)
-  }
-  
-  # Don't try to connect here - that can fail due to locks or other transient issues
-  # If file exists and is large enough, assume it's valid
-  # Connection will be tested when actually opening the database
+
+  if (!file.exists(db_path)) return(FALSE)
+
   return(TRUE)
 }
 
-#' Download and setup IPEDS database
-#' @description Downloads the IPEDS database from Google Drive and sets it up for use
+#' Download IPEDS database (from Dropbox)
+#' @description Downloads the IPEDS database from a Dropbox shared link and sets it up for use
 #' @param force Logical, if TRUE will re-download even if database exists
 #' @param quiet Logical, if TRUE suppresses progress messages
+#' @param dropbox_url Character. Public Dropbox link to the DB file. If NULL, uses .IPEDS_DB_URL or env var IPEDS_DB_DROPBOX_URL.
 #' @return Logical indicating success
 #' @export
-setup_ipeds_database <- function(force = FALSE, quiet = FALSE) {
+download_ipeds_database <- function(force = FALSE, quiet = FALSE, dropbox_url = NULL) {
+  # ---- helpers ---------------------------------------------------------------
+  normalize_dropbox_direct_url <- function(u) {
+    if (is.null(u) || !nzchar(u)) return(u)
+    # Accept both old /s/ and new /scl/fi/ links. Force direct download.
+    # If there's already a query, replace/append dl=1; otherwise add ?dl=1
+    if (!grepl("dropbox\\.com", u, ignore.case = TRUE)) return(u)
+    # Strip any dl param and force dl=1
+    if (grepl("\\?", u)) {
+      u <- sub("(?:[&?])dl=0", "", u)
+      u <- sub("(?:[&?])dl=1", "", u)
+      paste0(u, "&dl=1")
+    } else {
+      paste0(u, "?dl=1")
+    }
+  }
+
+  is_html_file <- function(path, max_bytes = 1024L) {
+    if (!file.exists(path)) return(TRUE)
+    fb <- readBin(path, what = "raw", n = max_bytes)
+    if (!length(fb)) return(TRUE)
+    txt <- rawToChar(fb[fb != as.raw(0)])
+    grepl("<html|<!DOCTYPE|<head|<body", txt, ignore.case = TRUE)
+  }
+
+  file_large_enough <- function(path, min_bytes = 5e7) {  # 50MB sanity check
+    fi <- file.info(path)
+    !is.na(fi$size) && fi$size >= min_bytes
+  }
+
   db_path <- get_ipeds_db_path()
-  db_path <- path.expand(db_path)  # Expand ~ to full path
-  
-  # CRITICAL CHECK: If file already exists and force is FALSE, DO NOT re-download
+  db_path <- path.expand(db_path)
+
+  # Bail early if present and big enough (unless force)
   if (!force) {
     if (file.exists(db_path)) {
       file_size <- file.info(db_path)$size
-      if (!is.na(file_size) && file_size > 1e9) {  # > 1GB means it's probably valid
+      if (!is.na(file_size) && file_size > 1e9) {  # > 1 GB likely valid
         if (!quiet) {
           message("IPEDS database already exists at: ", db_path)
           message("File size: ", round(file_size / 1e9, 2), " GB")
@@ -86,133 +89,99 @@ setup_ipeds_database <- function(force = FALSE, quiet = FALSE) {
         return(TRUE)
       }
     }
-  }
-  
-  # Additional check using the ipeds_database_exists() function
-  if (!force && ipeds_database_exists()) {
-    if (!quiet) {
-      message("IPEDS database already exists and is valid at: ", db_path)
+    if (ipeds_database_exists()) {
+      if (!quiet) message("IPEDS database already exists and is valid at: ", db_path)
+      return(TRUE)
     }
-    return(TRUE)
   }
-  
+
   if (!quiet) {
-    message("Setting up IPEDS database...")
-    message("This is a large file (2.4GB) and may take several minutes to download.")
+    message("Setting up IPEDS database from Dropbox...")
+    message("This is a large file and may take a while to download.")
   }
-  
-  # Create directory if it doesn't exist
-  data_dir <- dirname(db_path)
-  if (!dir.exists(data_dir)) {
-    dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-  
-  # Download the database with Google Drive handling
-  tryCatch({
-    if (!quiet) {
-      message("Downloading IPEDS database from Google Drive...")
-    }
-    
-    # For large Google Drive files, we need to handle the virus scan warning
-    # First attempt: try direct download
-    response <- httr::GET(
-      .IPEDS_DB_URL,
-      httr::write_disk(db_path, overwrite = TRUE),
-      httr::progress()
-    )
-    
-    # Check if we got an HTML page (virus scan warning) instead of the file
-    if (httr::status_code(response) == 200) {
-      # Check if the downloaded file is actually HTML (Google's warning page)
-      if (file.exists(db_path)) {
-        # Read first few bytes to check if it's HTML
-        first_bytes <- readBin(db_path, "raw", n = 100)
-        first_text <- rawToChar(first_bytes[first_bytes != 0])
-        
-        if (grepl("<html|<!DOCTYPE", first_text, ignore.case = TRUE)) {
-          if (!quiet) {
-            message("Received Google Drive virus scan warning. Attempting alternative download...")
-          }
-          
-          # Try alternative approach for large files
-          file.remove(db_path)
-          
-          # Alternative URL format that sometimes bypasses the warning
-          alt_url <- paste0("https://drive.usercontent.google.com/download?id=1xS0HIGH-XhoSXPIFE9YQ8gn1OmmrzUOC&export=download&authuser=0&confirm=t")
-          
-          response <- httr::GET(
-            alt_url,
-            httr::write_disk(db_path, overwrite = TRUE),
-            httr::progress()
-          )
-        }
+
+  # Resolve Dropbox URL (parameter wins; else env; else package option/variable)
+  if (is.null(dropbox_url) || !nzchar(dropbox_url)) {
+    dropbox_url <- Sys.getenv("IPEDS_DB_DROPBOX_URL", unset = NA_character_)
+    if (is.na(dropbox_url) || !nzchar(dropbox_url)) {
+      # fall back to legacy package-level constant if you keep the same name
+      if (exists(".IPEDS_DB_URL", inherits = TRUE)) {
+        dropbox_url <- get(".IPEDS_DB_URL", inherits = TRUE)
+      } else {
+        stop("No Dropbox URL provided. Set `dropbox_url=`, or env var IPEDS_DB_DROPBOX_URL, or define .IPEDS_DB_URL.")
       }
     }
-    
-    if (httr::status_code(response) != 200) {
-      stop("Failed to download database. HTTP status: ", httr::status_code(response))
+  }
+
+  direct_url <- normalize_dropbox_direct_url(dropbox_url)
+
+  # Download (use curl for robust streaming of large files)
+  # Retry a few times for transient network hiccups
+  tryCatch({
+    if (!quiet) message("Downloading IPEDS database from Dropbox...")
+
+    # Ensure target dir exists
+    dir.create(dirname(db_path), recursive = TRUE, showWarnings = FALSE)
+
+    # Use curl with manual retry loop
+    tries <- 5L
+    ok <- FALSE
+    last_err <- NULL
+    for (i in seq_len(tries)) {
+      if (!quiet) message(sprintf("Attempt %d of %d...", i, tries))
+      # Remove partial file before retry to avoid confusion
+      if (file.exists(db_path)) unlink(db_path)
+
+      # Quiet=TRUE silences progress; FALSE shows progress bar
+      # mode='wb' to avoid Windows newline weirdness
+      try({
+        curl::curl_download(url = direct_url, destfile = db_path, mode = "wb", quiet = quiet)
+        ok <- TRUE
+      }, silent = TRUE)
+
+      if (ok) {
+        # Quick sanity checks
+        if (is_html_file(db_path) || !file_large_enough(db_path)) {
+          ok <- FALSE
+          last_err <- "Downloaded file looks like HTML or is unexpectedly small. Check that the Dropbox link is public and ends with ?dl=1."
+          # Back off slightly before retry
+          Sys.sleep(if (i < tries) 2^i else 0)
+        } else {
+          break
+        }
+      } else {
+        last_err <- "Network error during download."
+        Sys.sleep(if (i < tries) 2^i else 0)
+      }
     }
-    
-    # Verify the downloaded file
+
+    if (!ok) stop(last_err %||% "Failed to download file.")
+
+    # Final verify using your existing checker
     if (!ipeds_database_exists()) {
-      stop("Downloaded file appears to be invalid. This may be due to Google Drive's virus scan for large files. Please try downloading manually from: https://drive.google.com/file/d/1xS0HIGH-XhoSXPIFE9YQ8gn1OmmrzUOC/view")
+      stop(
+        paste0(
+          "Downloaded file appears invalid. ",
+          "Ensure the Dropbox link points directly to the database file (use a public shared link with ?dl=1)."
+        )
+      )
     }
-    
+
     # Store metadata about the download
-    store_database_metadata()
-    
+    # store_database_metadata(source = "dropbox", url = dropbox_url)
+
     if (!quiet) {
+      sz <- file.info(db_path)$size
       message("IPEDS database successfully downloaded and verified!")
       message("Database location: ", db_path)
+      if (!is.na(sz)) message("File size: ", round(sz / 1e9, 2), " GB")
     }
-    
-    return(TRUE)
-    
+
+    TRUE
   }, error = function(e) {
-    # Clean up partial download
-    if (file.exists(db_path)) {
-      file.remove(db_path)
-    }
+    if (file.exists(db_path)) file.remove(db_path)
     stop("Failed to setup IPEDS database: ", e$message)
   })
-}
-
-#' Store database metadata
-#' @description Stores information about when the database was downloaded/updated
-#' @keywords internal
-store_database_metadata <- function() {
-  metadata <- list(
-    download_date = Sys.Date(),
-    download_time = Sys.time(),
-    version = .IPEDS_VERSION,
-    source_url = .IPEDS_DB_URL
-  )
-  
-  metadata_path <- file.path(dirname(get_ipeds_db_path()), "database_metadata.rds")
-  saveRDS(metadata, metadata_path)
-}
-
-#' Get database metadata
-#' @description Retrieves information about the current database
-#' @return List with database metadata or NULL if not found
-#' @export
-get_database_info <- function() {
-  metadata_path <- file.path(dirname(get_ipeds_db_path()), "database_metadata.rds")
-  
-  if (!file.exists(metadata_path)) {
-    return(NULL)
-  }
-  
-  metadata <- readRDS(metadata_path)
-  
-  # Add current file info
-  db_path <- get_ipeds_db_path()
-  if (file.exists(db_path)) {
-    metadata$file_size <- file.size(db_path)
-    metadata$file_modified <- file.mtime(db_path)
-  }
-  
-  return(metadata)
 }
 
 #' Check if database needs updating
@@ -220,137 +189,35 @@ get_database_info <- function() {
 #' @param max_age_days Maximum age of database in days before suggesting update
 #' @return Logical indicating if update is recommended
 #' @export
-check_database_age <- function(max_age_days = 90) {
-  metadata <- get_database_info()
-  
-  if (is.null(metadata)) {
-    return(TRUE)  # No metadata means we should update
-  }
-  
-  days_since_download <- as.numeric(Sys.Date() - metadata$download_date)
-  return(days_since_download > max_age_days)
-}
+database_outdated <- function(max_age_days = 120) {
 
-#' Update IPEDS database
-#' @description Forces an update of the IPEDS database
-#' @param quiet Logical, if TRUE suppresses progress messages
-#' @return Logical indicating success
-#' @export
-update_ipeds_database <- function(quiet = FALSE) {
-  if (!quiet) {
-    message("Updating IPEDS database...")
-  }
-  
-  return(setup_ipeds_database(force = TRUE, quiet = quiet))
+  download_date <- file.info(get_ipeds_db_path())$ctime
+
+  days_since_download <- as.numeric(Sys.time() - download_date)/(60*60*24)
+  return(days_since_download > max_age_days)
 }
 
 #' Get database connection
 #' @description Internal function to get a database connection
 #' @param read_only Logical, if TRUE opens connection in read-only mode
 #' @return DBI connection object
-#' @keywords internal
+#' @export
 get_ipeds_connection <- function(read_only = TRUE) {
   # Check if database exists, if not, set it up
   if (!ipeds_database_exists()) {
-    message("IPEDS database not found. Setting up for first use...")
-    setup_ipeds_database(quiet = FALSE)
+    stop("IPEDS database not found. Use download_ipeds_database().")
   }
-  
+
   # Check if database is old and suggest update
-  if (check_database_age()) {
-    message("Note: Your IPEDS database is more than 90 days old. Consider running update_ipeds_database()")
+  if (database_outdated()) {
+    message("Note: Your IPEDS database is more than 120 days old. Consider updating with download_ipeds_database()")
   }
-  
+
   db_path <- get_ipeds_db_path()
-  db_path <- path.expand(db_path)  # Expand ~ to full path
+
   conn <- DBI::dbConnect(duckdb::duckdb(), db_path, read_only = read_only)
-  
+
   return(conn)
 }
 
-#' Ensure database connection
-#' @description Ensures a valid database connection exists, creating one if needed
-#' @param read_only Whether to open in read-only mode (default: FALSE for data import compatibility)
-#' @return DBI connection object
-#' @keywords internal
-ensure_connection <- function(read_only = FALSE) {
-  # Check if we have a cached connection that matches read_only requirement
-  if (exists("connection", envir = .ipeds_env) && 
-      DBI::dbIsValid(.ipeds_env$connection)) {
-    # For simplicity, always use the existing connection if valid
-    # In practice, you might want to check if it matches read_only requirement
-    return(.ipeds_env$connection)
-  }
-  
-  # Create new connection
-  .ipeds_env$connection <- get_ipeds_connection(read_only = read_only)
-  return(.ipeds_env$connection)
-}
 
-#' Disconnect from database
-#' @description Cleanly disconnects from the IPEDS database
-#' @export
-disconnect_ipeds <- function() {
-  if (exists("connection", envir = .ipeds_env) && 
-      DBI::dbIsValid(.ipeds_env$connection)) {
-    DBI::dbDisconnect(.ipeds_env$connection)
-    rm("connection", envir = .ipeds_env)
-  }
-}
-
-#' Manually setup IPEDS database from local file
-#' @description Set up the IPEDS database from a manually downloaded file
-#' @param file_path Path to the manually downloaded database file
-#' @return Logical indicating success
-#' @export
-setup_ipeds_database_manual <- function(file_path) {
-  if (!file.exists(file_path)) {
-    stop("File not found: ", file_path)
-  }
-  
-  db_path <- get_ipeds_db_path()
-  
-  # Create directory if it doesn't exist
-  data_dir <- dirname(db_path)
-  if (!dir.exists(data_dir)) {
-    dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
-  }
-  
-  # Copy the file
-  message("Copying database file...")
-  file.copy(file_path, db_path, overwrite = TRUE)
-  
-  # Verify the file
-  if (!ipeds_database_exists()) {
-    stop("The provided file does not appear to be a valid IPEDS database")
-  }
-  
-  # Store metadata
-  store_database_metadata()
-  
-  message("IPEDS database successfully set up from manual file!")
-  message("Database location: ", db_path)
-  
-  return(TRUE)
-}
-
-#' Get database path for manual download
-#' @description Returns the path where users should place manually downloaded database files
-#' @return Character string with the expected database path
-#' @export
-get_manual_database_path <- function() {
-  db_path <- get_ipeds_db_path()
-  message("Manual database setup instructions:")
-  message("1. Download the database from: https://drive.google.com/file/d/1xS0HIGH-XhoSXPIFE9YQ8gn1OmmrzUOC/view")
-  message("2. Place the file at: ", db_path)
-  message("3. Or use: setup_ipeds_database_manual('/path/to/your/downloaded/file.duckdb')")
-  return(db_path)
-}
-
-#' Package cleanup
-#' @description Ensures database connection is closed when package is unloaded
-#' @param libpath Library path (unused)
-#' @keywords internal
-.onUnload <- function(libpath) {
-  disconnect_ipeds()
-}
