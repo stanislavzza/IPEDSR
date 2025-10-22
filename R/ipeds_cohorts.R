@@ -233,6 +233,10 @@ get_retention <- function(idbc, UNITIDs = NULL){
 }
 
 #' Admit Funnel
+#' @description
+#' Retrieve admissions funnel data from IPEDS, including applications,
+#' admissions, enrollments, all by gender and totals, and standardized test
+#' scores. An imputed standardized test score imp_testz is also computed.
 #' @param idbc database connector
 #' @param UNITIDs optional list of UNITIDs to filter to
 #' @export
@@ -381,6 +385,18 @@ get_admit_funnel <- function(idbc, UNITIDs = NULL){
     out <- rbind(out, df)
   }
 
+  # impute test score metric
+  tests <- out |>
+    select(Year, UNITID, Total_enrolls, starts_with("ACT"), starts_with("SAT")) |>
+    select(-ACTPCT, -SATPCT) |>
+    mutate(ACTprop = ACTNUM/Total_enrolls, SATprop = SATNUM/Total_enrolls) |>
+    standardize_scores(degree = 2) %>%  # create the z-score versions -- code at the bottom
+    mutate(imp_testz = rowMeans(select(., ends_with("z")))) |>
+    select(Year, UNITID, imp_testz)
+
+  out <- out |>
+    left_join(tests, by = c("Year", "UNITID"))
+
   return(out)
 
 }
@@ -489,3 +505,23 @@ get_fa_info <- function(idbc, UNITIDs = NULL){
   return(out)
 }
 
+###################### Imputations ##########################
+standardize_scores <- function(score_data, degree) {
+  # Scaling the variables.
+ score_data |>
+    group_by(Year) |>
+    mutate(
+      SATVR25z = scale(SATVR25), SATVR75z = scale(SATVR75), # SAT verbal
+      SATMT25z = scale(SATMT25), SATMT75z = scale(SATMT75), # SAT math
+      ACTCM25z = scale(ACTCM25), ACTCM75z = scale(ACTCM75), # ACT composite
+      ACTEN25z = scale(ACTEN25), ACTEN75z = scale(ACTEN75), # ACT English
+      ACTMT25z = scale(ACTMT25), ACTMT75z = scale(ACTMT75), # ACT math
+
+      # orthogonal polynomials
+      SATVR25_poly = poly(SATVR25z, degree, raw = TRUE),
+      SATVR75_poly = poly(SATVR75z, degree, raw = TRUE),
+      SATMT25_poly = poly(SATMT25z, degree, raw = TRUE),
+      SATMT75_poly = poly(SATMT75z, degree, raw = TRUE)
+    ) |>
+    ungroup()
+}

@@ -12,5 +12,7 @@ get_admit_funnel(idbc, UNITIDs = NULL)
 \item{UNITIDs}{optional list of UNITIDs to filter to}
 }
 \description{
-Admit Funnel
+Retrieve admissions funnel data from IPEDS, including applications,
+admissions, enrollments, all by gender and totals, and standardized test
+scores. An imputed standardized test score imp_testz is also computed.
 }
