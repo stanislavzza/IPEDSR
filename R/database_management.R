@@ -13,7 +13,7 @@
 #' @description Returns the path where the IPEDS database should be stored.
 #' Always uses the user's persistent data directory to avoid re-downloading.
 #' @return Character string with the database path
-#' @keywords internal
+#' @export
 get_ipeds_db_path <- function() {
   # Use user's data directory - this is persistent across package reloads
   data_dir <- rappdirs::user_data_dir("database","IPEDSR" )

@@ -1,9 +1,147 @@
-#' Get financials
+#' Get financials for public and privates
 #' @param idbc Database connector
 #' @param UNTIDs vector of UNITIDs to retrieve
 #' @return Dataframe with endowment, revenue and other statistics
 #' @export
 get_finances <- function(idbc, UNITIDs = NULL){
+
+  # first get publics
+  pub_df <- get_finances_public(idbc, UNITIDs)
+
+  # then privates
+  priv_df <- get_finances_private(idbc, UNITIDs)
+
+  # combine
+  out <- bind_rows(pub_df, priv_df) %>%
+    arrange(UNITID, Year)
+
+  return(out)
+}
+
+
+#' Get financials for public institutions
+#' @param idbc Database connector
+#' @param UNTIDs vector of UNITIDs to retrieve
+#' @return Dataframe with endowment, revenue and other statistics
+#' @export
+get_finances_public <- function(idbc, UNITIDs = NULL){
+
+  # find all the tables
+  tnames <- my_dbListTables(idbc, search_string = "^F\\d{4}_F1A$")
+
+  out <- data.frame()
+
+  for(tname in tnames) {
+
+    # use the fall near, not the year on the table name
+    year <- 2000 + as.integer(substr(tname, 2,3))
+
+  # if(year < 2009) next
+
+
+    if(year < 2009){
+      df <- tbl(idbc,tname) %>%
+        select(UNITID,
+               F1A15, # Total restricted net assets
+               F1A16, # Permanently restricted net assets included in total restricted net assets
+               F1B09,  # total revenue
+               F1D02,  # total expenses
+               F1E05, # Total restricted grants
+               F1E06, # Total unrestricted grants
+               Total_unrestricted_net_assets = F1A17,
+               Total_expenses = F1C151,
+               Change_in_net_assets = F1D03,
+               Net_assets = F1A18,
+               Cost_instruction = F1C011,
+               Cost_instruction_salary  = F1C012,
+               Cost_acad_support = F1C051,
+               Cost_student_serv = F1C061,
+               Cost_inst_support = F1C071,
+               Cost_aux_ent      = F1C111,
+               Cost_total_salary = F1C152,
+               Cost_total_benefit = F1C153,
+               Cost_operations    = F1C081,
+               Cost_depreciation  = F1C091,
+               Cost_interest      = F1C161,
+               Cost_other         = F1C141,
+               Endowment          = F1H01,
+               Investment_return  = F1B17, # from endowment
+               Net_tuition_revenue = F1B01, # it really is; checked against audit
+          #     Funded_aid         = F2C05,
+               Inst_aid           = F1E08
+        )
+
+      if (!is.null(UNITIDs)) {
+        df <- df %>% filter(UNITID %in% !!UNITIDs)
+      }
+
+      df <- df %>%
+        collect() %>%
+        mutate( Year = year,
+                Temporarily_restricted_net_assets = Net_assets - F1A15 - F1A16,
+                Property_Plant_Equipment_net_depreciation = NA,
+                Debt_Property_Plant_Equipment = NA,
+                Net_total_revenues = F1B09 - F1D02,
+                Endowment = as.integer(Endowment),
+                Funded_aid = F1E05 + F1E06
+        ) %>%
+        select(-F1A15, -F1A16, -F1B09, -F1D02, -F1E05, -F1E06)
+
+    } else {
+
+      df <- tbl(idbc,tname) %>%
+        select(UNITID,
+               F1E05, # Total restricted grants
+               F1E06, # Total unrestricted grants
+               Total_unrestricted_net_assets = F1A17,
+               Temporarily_restricted_net_assets = F1A15,
+               Property_Plant_Equipment_net_depreciation = F1A284,
+             #  Debt_Property_Plant_Equipment = F1N06,
+            #   Total_expenses = F1N07,
+               Change_in_net_assets = F1D03,
+               Net_assets = F1D06,
+               Net_total_revenues = F1D01,
+               Cost_instruction = F1C011,
+               Cost_instruction_salary = F1C012,
+               Cost_acad_support = F1C051,
+               Cost_student_serv = F1C061,
+               Cost_inst_support = F1C071,
+               Cost_aux_ent      = F1C011,
+               Cost_total_salary = F1C192,
+               Cost_total_benefit = F1C193,
+        #       Cost_operations    = F1C19OM,
+        #       Cost_depreciation  = F1C19DP,
+         #      Cost_interest      = F1C19IN,
+               Cost_other         = F1C141,
+               Endowment          = F1H01,
+               Investment_return  = F1B17, # from endowment and other
+               Net_tuition_revenue = F1B01,
+               # institutional aid, funded and unfunded
+               Inst_aid           = F1E08) %>%
+        mutate(Year = year,
+               Endowment = as.numeric(Endowment),
+               Debt_Property_Plant_Equipment = NA_real_,
+               Total_expenses = NA_real_,
+               Funded_aid = F1E05 + F1E06)
+
+      if (!is.null(UNITIDs)) {
+        df <- df %>% filter(UNITID %in% !!UNITIDs)
+      }
+
+      df <- df %>% collect()
+    }
+    out <- bind_rows(out, df)
+
+  } # end of loop
+  return(out)
+}
+
+#' Get financials for private institutions
+#' @param idbc Database connector
+#' @param UNTIDs vector of UNITIDs to retrieve
+#' @return Dataframe with endowment, revenue and other statistics
+#' @export
+get_finances_private <- function(idbc, UNITIDs = NULL){
 
   # find all the tables
   tnames <- my_dbListTables(idbc, search_string = "^F\\d{4}_F2")
