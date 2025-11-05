@@ -9,21 +9,156 @@
 .IPEDS_DB_URL <- "https://www.dropbox.com/scl/fi/rrevsok6nmabcjoz4b9gp/ipeds_2004-2023.duckdb?rlkey=brdhb0bxjbwhva9jm1a7j89kh&dl=0"
 .IPEDS_DB_NAME <- "ipeds.duckdb"
 
+# ---------------------------------------------------------------------
+# Internal helpers (file name/path utils)
+# ---------------------------------------------------------------------
+
+.ipedsr_config_file <- function() {
+  cfg_dir <- rappdirs::user_config_dir("IPEDSR")
+  if (!dir.exists(cfg_dir)) dir.create(cfg_dir, recursive = TRUE, showWarnings = FALSE)
+  file.path(cfg_dir, "config.yml")
+}
+
+.normalize_slashes <- function(x) gsub("\\\\", "/", x)
+
+.validate_writable_dir <- function(dir_path, create_if_missing = TRUE) {
+  stopifnot(length(dir_path) == 1L, nchar(dir_path) > 0L)
+  # If a file exists with this name, it's invalid
+  if (file.exists(dir_path) && !dir.exists(dir_path)) {
+    stop("The path '", dir_path, "' exists but is not a directory.", call. = FALSE)
+  }
+  # Create directory if needed
+  if (!dir.exists(dir_path)) {
+    if (!create_if_missing) {
+      stop("The directory '", dir_path, "' does not exist.", call. = FALSE)
+    }
+    ok <- tryCatch({
+      dir.create(dir_path, recursive = TRUE, showWarnings = FALSE)
+    }, error = function(e) FALSE)
+    if (!isTRUE(ok) || !dir.exists(dir_path)) {
+      stop("Failed to create directory '", dir_path, "'. Check permissions.", call. = FALSE)
+    }
+  }
+  # Check writability by creating a temp file
+  probe <- file.path(dir_path, paste0(".ipedsr_write_test_", Sys.getpid(), "_", as.integer(runif(1,1,1e9))))
+  ok <- tryCatch({
+    file.create(probe)
+  }, warning = function(w) FALSE, error = function(e) FALSE)
+  if (!isTRUE(ok)) {
+    stop("Cannot write to '", dir_path, "'. Check permissions.", call. = FALSE)
+  }
+  unlink(probe, force = TRUE)
+  invisible(dir_path)
+}
+
+# ---------------------------------------------------------------------
 #' Get IPEDS database path
-#' @description Returns the path where the IPEDS database should be stored.
-#' Always uses the user's persistent data directory to avoid re-downloading.
-#' @return Character string with the database path
+#'
+#' @description Returns the full file path where the IPEDS database file
+#'   should be stored/loaded. Honors a user-configured path from
+#'   `~/.config/IPEDSR/config.yml` (platform-specific; see Details). If no
+#'   config is found, falls back to a persistent per-user data directory.
+#'
+#' @details The configuration file is stored under the user configuration
+#'   directory reported by \code{rappdirs::user_config_dir("IPEDSR")}.
+#'   The YAML structure is:
+#'
+#'   \preformatted{
+#'   db_path: "/absolute/or/tilde/expanded/path"
+#'   }
+#'
+#'   The default (when no config is set) is
+#'   \code{rappdirs::user_data_dir("database", "IPEDSR")}.
+#'
+#' @return Character scalar: full path to the database file (directory +
+#'   \code{.IPEDS_DB_NAME}).
 #' @export
 get_ipeds_db_path <- function() {
-  # Use user's data directory - this is persistent across package reloads
-  data_dir <- rappdirs::user_data_dir("database","IPEDSR" )
-  if (!dir.exists(data_dir)) {
-    dir.create(data_dir, recursive = TRUE, showWarnings = FALSE)
+  # 1) Try to read user config
+  cfg_file <- .ipedsr_config_file()
+  dir_path <- NULL
+  if (file.exists(cfg_file)) {
+    cfg <- tryCatch(
+      yaml::read_yaml(cfg_file),
+      error = function(e) stop("Failed to read config at '", cfg_file, "': ", e$message, call. = FALSE)
+    )
+    if (!is.null(cfg$db_path) && is.character(cfg$db_path) && length(cfg$db_path) == 1L && nchar(cfg$db_path) > 0L) {
+      dir_path <- path.expand(cfg$db_path)
+    } else if (!is.null(cfg$db_path)) {
+      warning("Ignoring invalid 'db_path' in config; falling back to default.")
+    }
   }
-  # normalize file path with slashes
-  data_dir <- str_replace_all(data_dir, "\\\\", "/")
-  file.path(data_dir, .IPEDS_DB_NAME)
+
+  # 2) Fallback to existing default if not configured
+  if (is.null(dir_path)) {
+    dir_path <- rappdirs::user_data_dir("database", "IPEDSR")
+  }
+
+  # Ensure directory exists (do not error here; creation may happen in setup)
+  if (!dir.exists(dir_path)) {
+    dir.create(dir_path, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  dir_path <- .normalize_slashes(dir_path)
+  file.path(dir_path, .IPEDS_DB_NAME)
 }
+
+# ---------------------------------------------------------------------
+#' Set the IPEDS database directory (persisted in YAML)
+#'
+#' @title Configure where the IPEDS database will be stored
+#' @description Persists a user-selected directory in a YAML config file so
+#'   future calls use this directory instead of the default. Verifies that the
+#'   directory exists (or creates it) and is writable.
+#'
+#' @param path Character scalar. The directory in which the IPEDS database file
+#'   should live. Tilde (\code{~}) is allowed and will be expanded.
+#'
+#' @details The configuration is written to
+#'   \code{file.path(rappdirs::user_config_dir("IPEDSR"), "config.yml")} with
+#'   a single key \code{db_path}. If you later remove or edit this file, the
+#'   package will fall back to its default location.
+#'
+#'   This function will attempt to create the directory (recursively) if it does
+#'   not exist and will test write permissions by creating and deleting a probe
+#'   file inside the directory.
+#'
+#' @return (Invisibly) the normalized, expanded directory path that was set.
+#' @examples
+#' \dontrun{
+#' set_ipeds_db_path("~/Dropbox/ipeds-db")
+#' }
+#' @seealso [rappdirs::user_config_dir()]
+#' @export
+set_ipeds_db_path <- function(path) {
+  if (missing(path) || !is.character(path) || length(path) != 1L || nchar(path) == 0L) {
+    stop("`path` must be a single, non-empty character string.", call. = FALSE)
+  }
+
+  # Expand ~ and normalize early for clearer error messages
+  dir_path <- path.expand(path)
+  dir_path <- .normalize_slashes(dir_path)
+
+  # Validate/create and ensure writability
+  .validate_writable_dir(dir_path, create_if_missing = TRUE)
+
+  # Write YAML config
+  cfg_file <- .ipedsr_config_file()
+  cfg <- list(db_path = dir_path)
+  tryCatch(
+    {
+      yaml::write_yaml(cfg, cfg_file)
+    },
+    error = function(e) {
+      stop("Failed to write config to '", cfg_file, "': ", e$message, call. = FALSE)
+    }
+  )
+
+  message("IPEDS database directory set to: ", dir_path,
+          "\nConfig saved at: ", cfg_file)
+  invisible(dir_path)
+}
+
 
 #' Check if IPEDS database exists and is valid
 #' @description Checks if the database file exists and has a reasonable size
