@@ -13,4 +13,3 @@ Character string with the database path
 Returns the path where the IPEDS database should be stored.
 Always uses the user's persistent data directory to avoid re-downloading.
 }
-\keyword{internal}
