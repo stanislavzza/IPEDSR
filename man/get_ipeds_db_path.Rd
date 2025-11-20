@@ -7,9 +7,24 @@
 get_ipeds_db_path()
 }
 \value{
-Character string with the database path
+Character scalar: full path to the database file (directory +
+  \code{.IPEDS_DB_NAME}).
 }
 \description{
-Returns the path where the IPEDS database should be stored.
-Always uses the user's persistent data directory to avoid re-downloading.
+Returns the full file path where the IPEDS database file
+  should be stored/loaded. Honors a user-configured path from
+  `~/.config/IPEDSR/config.yml` (platform-specific; see Details). If no
+  config is found, falls back to a persistent per-user data directory.
+}
+\details{
+The configuration file is stored under the user configuration
+  directory reported by \code{rappdirs::user_config_dir("IPEDSR")}.
+  The YAML structure is:
+
+  \preformatted{
+  db_path: "/absolute/or/tilde/expanded/path"
+  }
+
+  The default (when no config is set) is
+  \code{rappdirs::user_data_dir("database", "IPEDSR")}.
 }
