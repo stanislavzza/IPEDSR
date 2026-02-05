@@ -45,6 +45,10 @@ The package automatically installs required dependencies:
 library(tidyverse)
 library(IPEDSR)
 
+# OPTIONAL - set a custom path for the database file
+IPEDSR::set_ipeds_db_path("~/user/ipeds_data") # change to your path
+
+# if skipped, it chooses a default location
 IPEDSR::download_ipeds_database() # repeat when new versions are available
 
 # Test it by retrieving Harvard presidents
