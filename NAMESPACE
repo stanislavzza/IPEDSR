@@ -2,6 +2,7 @@
 
 export("%>%")
 export(IPEDS_SURVEY_REGISTRY)
+export(build_dictionary_metadata)
 export(cum_inflation)
 export(database_outdated)
 export(download_ipeds_database)

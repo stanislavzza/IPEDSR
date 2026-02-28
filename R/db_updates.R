@@ -261,12 +261,12 @@ write_ipeds_tables_meta <- function(index,
   }
 
   yy <- sprintf("%02d", year %% 100)
-  meta_table <- paste0("Tables", yy)
+  meta_table <- paste0("tables", yy)
 
   meta <- index |>
     dplyr::transmute(
       Survey = .data$survey,
-      TableName = .data$table_name,
+      TableName = str_to_lower(.data$table_name),
       TableTitle = .data$title
     ) |>
     dplyr::distinct() |>
@@ -290,3 +290,206 @@ write_ipeds_tables_meta <- function(index,
 # Example:
 # idx_2024 <- get_ipeds_index(2024)
 # write_ipeds_tables_meta(idx_2024)  # creates Tables24 in your DuckDB
+
+
+
+#' Download dictionary files and create meta data tables for variables
+#' and code lookups
+#' @description For each dictionary URL in the index, downloads the file,
+#' extracts variable metadata and code lookups, and writes two tables to
+#' DuckDB: valuesetsYY and varmetaYY.
+#' @param index A tibble/data.frame with columns: year, table_name, dict_url
+#' @param db_path Path to DuckDB database. Defaults to get_ipeds_db_path
+#' @param prefix_valuesets Prefix for the valuesets table name (default "valuesets")
+#' @param prefix_varmeta Prefix for the variable metadata table name (default "vartable")
+#' @param overwrite If TRUE, replaces existing tables
+#' @return Invisibly returns a list with the names of the tables created
+#' @export
+build_dictionary_metadata <- function(index, db_path = get_ipeds_db_path(),
+                                      prefix_valuesets = "valuesets",
+                                      prefix_varmeta = "vartable",
+                                      overwrite = TRUE) {
+
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = FALSE)
+
+  stopifnot(all(c("year", "table_name", "dict_url") %in% names(index)))
+
+  years <- unique(index$year)
+  if (length(years) != 1) stop("Index must contain exactly one year.")
+  yy <- substr(as.character(years), 3, 4)
+
+  valuesets_tbl <- paste0(prefix_valuesets, yy)  # "valuesets24"
+  varmeta_tbl   <- paste0(prefix_varmeta, yy)    # "varmeta24"
+
+  valuesets_all <- list()
+  varmeta_all   <- list()
+
+  idx <- index |>
+    dplyr::transmute(
+      TableName = stringr::str_to_lower(.data$table_name),
+      dict_url  = .data$dict_url
+    ) |>
+    dplyr::distinct()
+
+  for (i in seq_len(nrow(idx))) {
+    tname <- idx$TableName[[i]]
+    durl  <- idx$dict_url[[i]]
+
+    dict_path <- download_dict_file(durl)
+    parts <- read_dict_components(dict_path)
+
+    # A) Frequencies -> valuesets
+    if (!is.null(parts$freq) && nrow(parts$freq) > 0) {
+      valuesets_all[[length(valuesets_all) + 1]] <-
+        parts$freq |>
+        dplyr::mutate(TableName = tname) |>
+        dplyr::select(TableName, varNumber, varName, CodeValue, valueLabel)
+    }
+
+    # B) Varlist + Description -> varmeta
+    if (!is.null(parts$varlist) && nrow(parts$varlist) > 0) {
+      vm <- parts$varlist
+      if (!is.null(parts$desc) && nrow(parts$desc) > 0) {
+        vm <- vm |> dplyr::left_join(parts$desc, by = "varName")
+      } else {
+        vm <- vm |> dplyr::mutate(longDescription = NA_character_)
+      }
+
+      varmeta_all[[length(varmeta_all) + 1]] <-
+        vm |>
+        dplyr::mutate(TableName = tname) |>
+        dplyr::select(TableName, varNumber, varName, varTitle, DataType, FieldWidth, format, longDescription)
+    }
+  }
+
+  valuesets <- dplyr::bind_rows(valuesets_all) |>
+    dplyr::distinct() |>
+    dplyr::arrange(.data$TableName, .data$varNumber, .data$CodeValue)
+
+  varmeta <- dplyr::bind_rows(varmeta_all) |>
+    dplyr::distinct() |>
+    dplyr::arrange(.data$TableName, .data$varNumber)
+
+
+  DBI::dbWriteTable(con, valuesets_tbl, valuesets, overwrite = overwrite)
+  DBI::dbWriteTable(con, varmeta_tbl, varmeta, overwrite = overwrite)
+
+  invisible(list(valuesets_table = valuesets_tbl, varmeta_table = varmeta_tbl))
+}
+
+#' Helper functions
+#'
+download_dict_file <- function(url, destdir = tempdir()) {
+  tf <- file.path(destdir, paste0("ipeds_dict_", digest::digest(url), ".bin"))
+  utils::download.file(url, tf, mode = "wb", quiet = TRUE)
+
+  # If it's a zip, extract and pick the first Excel file inside
+  if (tolower(tools::file_ext(tf)) == "zip" || zip::zip_list(tf) |> nrow() > 0) {
+    exdir <- file.path(destdir, paste0("ipeds_dict_", digest::digest(url)))
+    dir.create(exdir, showWarnings = FALSE, recursive = TRUE)
+    utils::unzip(tf, exdir = exdir)
+
+    excel_files <- list.files(exdir, pattern = "\\.(xlsx|xls)$", full.names = TRUE, recursive = TRUE)
+    if (length(excel_files) == 0) stop("Zip contained no .xls/.xlsx: ", url)
+    return(excel_files[[1]])
+  }
+
+  # Otherwise, assume it's directly an Excel file
+  ext <- tolower(tools::file_ext(tf))
+  if (!ext %in% c("xlsx", "xls")) {
+    stop("Dictionary file is not .xls/.xlsx or a readable zip: ", url)
+  }
+  tf
+}
+
+find_sheet <- function(path, target) {
+  sheets <- readxl::excel_sheets(path)
+  hit <- sheets[tolower(sheets) == tolower(target)]
+  if (length(hit) == 0) return(NA_character_)
+  hit[[1]]
+}
+
+read_dict_components <- function(dict_path) {
+  sh_freq <- find_sheet(dict_path, "Frequencies")
+  sh_var  <- find_sheet(dict_path, "Varlist")
+  sh_desc <- find_sheet(dict_path, "Description")
+
+  freq <- NULL
+  varlist <- NULL
+  desc <- NULL
+
+  if (!is.na(sh_freq)) {
+    raw <- readxl::read_excel(dict_path, sheet = sh_freq, .name_repair = "minimal") |>
+      dplyr::rename_with(~trimws(.x))
+
+    freq <- dplyr::tibble(
+      varNumber  = suppressWarnings(as.integer(get_col(raw, "VarNumber"))),
+      varName    = as.character(get_col(raw, "VarName")),
+      CodeValue  = as.character(get_col(raw, "CodeValue")),
+      valueLabel = as.character(get_col(raw, "valuelabel")) # IPEDS uses this often
+    )
+
+    # Sometimes the column is ValueLabel instead of valuelabel
+    if (all(is.na(freq$valueLabel))) {
+      freq$valueLabel <- as.character(get_col(raw, "ValueLabel"))
+    }
+
+    freq <- freq |>
+      dplyr::mutate(
+        varName = stringr::str_to_upper(.data$varName)
+      ) |>
+      dplyr::select(varNumber, varName, CodeValue, valueLabel)
+  }
+
+  if (!is.na(sh_var)) {
+    raw <- readxl::read_excel(dict_path, sheet = sh_var, .name_repair = "minimal") |>
+      dplyr::rename_with(~trimws(.x))
+
+    varlist <- dplyr::tibble(
+      varNumber  = suppressWarnings(as.integer(get_col(raw, "varNumber"))),
+      varName    = as.character(get_col(raw, "varName")),
+      varTitle   = as.character(get_col(raw, "varTitle")),
+      DataType   = as.character(get_col(raw, "DataType")),
+      FieldWidth = suppressWarnings(as.integer(get_col(raw, "FieldWidth"))),
+      format     = as.character(get_col(raw, "format"))
+    ) |>
+      dplyr::mutate(
+        varName = stringr::str_to_upper(.data$varName)
+      ) |>
+      dplyr::select(varNumber, varName, varTitle, DataType, FieldWidth, format)
+  }
+
+  if (!is.na(sh_desc)) {
+    raw <- readxl::read_excel(dict_path, sheet = sh_desc, .name_repair = "minimal") |>
+      dplyr::rename_with(~trimws(.x))
+
+    desc <- dplyr::tibble(
+      varName         = as.character(get_col(raw, "varName")),
+      longDescription = as.character(get_col(raw, "longDescription"))
+    ) |>
+      dplyr::mutate(
+        varName = stringr::str_to_upper(.data$varName)
+      ) |>
+      dplyr::select(varName, longDescription)
+  }
+
+  list(freq = freq, varlist = varlist, desc = desc)
+}
+
+# Return the actual column name matching `target` ignoring case,
+# or NA_character_ if not found.
+find_col <- function(df, target) {
+  nms <- names(df)
+  hit <- nms[tolower(nms) == tolower(target)]
+  if (length(hit) == 0) NA_character_ else hit[[1]]
+}
+
+# Pull a column by a case-insensitive name; if missing, return default vector
+get_col <- function(df, target, default = NA) {
+  nm <- find_col(df, target)
+  if (is.na(nm)) {
+    rep(default, nrow(df))
+  } else {
+    df[[nm]]
+  }
+}
