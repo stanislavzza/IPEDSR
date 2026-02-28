@@ -68,3 +68,19 @@ for(year in 2006:2023){
 print(presidents)
 ```
 You can find related R projects on the ThIRsdays site [here](https://www.reddit.com/r/ThIRsdays/comments/1kfdv2l/thirsdays_schedule/).
+
+# Updating Tables
+
+To refresh data, you can either download a new copy as in the block above or
+run a utility shown below. The recommended way is to use the 
+`download_ipeds_database()` function, which will also include updates to other
+tables like EADA.
+
+However, if you want to refresh or add a new year of data, use the following.
+
+```r
+# pick a year to update
+year <- 2024 # 2024-25
+ipeds_index <- ipeds_dl_index(year)
+load_ipeds_index_to_duckdb(ipeds_index) # uses default duckdb path
+```
