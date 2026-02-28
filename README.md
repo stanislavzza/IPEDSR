@@ -83,4 +83,10 @@ However, if you want to refresh or add a new year of data, use the following.
 year <- 2024 # 2024-25
 ipeds_index <- ipeds_dl_index(year)
 load_ipeds_index_to_duckdb(ipeds_index) # uses default duckdb path
+
+# write the tables list 
+write_ipeds_tables_meta(ipeds_index)
+
+# the vars and codes tables
+build_dictionary_metadata(ipeds_index)
 ```

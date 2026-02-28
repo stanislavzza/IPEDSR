@@ -32,9 +32,9 @@ tbl(idbc,"Tables24") |> collect() -> tdf
 dbListTables(idbc) |>
   str_subset("^values")
 
-tbl(idbc,"valuesets23") |> collect() -> tdf
+tbl(idbc,"valuesets24") |> collect() -> tdf
 
 dbListTables(idbc) |>
   str_subset("^var")
 
-tbl(idbc,"vartable23") |> collect() -> tdf
+tbl(idbc,"vartable24") |> collect() -> tdf
