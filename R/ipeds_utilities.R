@@ -110,7 +110,7 @@ get_ipeds_table <- function(idbc, table_name, year2, UNITIDs = NULL){
   # get any variables that need to be interpolated from numbers to characters,
   # e.g. 1 = public, 2 = private
   my_values <- tbl(idbc,values_tname) %>%
-    filter(TableName == !!table_name) %>%
+    filter(toupper(TableName) == !!table_name) %>%
     select(varName, Codevalue, valueLabel) %>%
     collect()
 
@@ -131,7 +131,7 @@ get_ipeds_table <- function(idbc, table_name, year2, UNITIDs = NULL){
   # using the IPEDS column name index here:
   my_cols <- tbl(idbc,vars_tname) %>%
       select(varName, varTitle, TableName, longDescription) %>%
-      filter(TableName == !!table_name) %>%
+      filter(toupper(TableName) == !!table_name) %>%
       collect() %>%
       select(-TableName)
 
