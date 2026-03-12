@@ -6,7 +6,8 @@
 my_dbListTables <- function(idbc, search_string){
 
   tables <- DBI::dbListTables(idbc, table_type = "TABLE")
-  tables <- tables[str_detect(toupper(tables), search_string)]
+  tables <- toupper(tables) # for consistant matching
+  tables <- tables[str_detect(tables, search_string)]
 
   return(tables)
 }
