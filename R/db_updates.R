@@ -366,10 +366,16 @@ build_dictionary_metadata <- function(index, db_path = get_ipeds_db_path(),
     dplyr::distinct() |>
     dplyr::arrange(.data$TableName, .data$varNumber, .data$CodeValue)
 
+  valuesets <- valuesets |>
+    rename(Codevalue = CodeValue) # to match the access tables
+
   varmeta <- dplyr::bind_rows(varmeta_all) |>
     dplyr::distinct() |>
     dplyr::arrange(.data$TableName, .data$varNumber)
 
+  # change tablenames to upper case
+  valuesets_tbl <- tupercase(valuesets_tbl)
+  varmeta_tbl   <- tupercase(varmeta_tbl)
 
   DBI::dbWriteTable(con, valuesets_tbl, valuesets, overwrite = overwrite)
   DBI::dbWriteTable(con, varmeta_tbl, varmeta, overwrite = overwrite)
