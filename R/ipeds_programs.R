@@ -115,14 +115,14 @@ get_cip2_counts <- function(idbc, awlevel = "05", UNITIDs = NULL, first_only = F
     # use the fall near, not the year on the table name
     year <- as.integer(substr(tname, 2,5))
 
+    if(year <= 2007) next # these have different column names
+
     # get the lookup table name
     ltable <- tbl(idbc, str_c("valuesets", substr(tname, 4,5))) %>%
       filter(varName == "CIPCODE", nchar(Codevalue) == 2) %>%
       select(CIP2 = Codevalue, CIPDesc = valueLabel) %>%
       collect() %>%
       distinct(CIP2, .keep_all = TRUE)
-
-    if(year <= 2007) next # these have different column names
 
     tdf <- tbl(idbc, tname) %>%
       filter(AWLEVEL %in% !!awlevel,
