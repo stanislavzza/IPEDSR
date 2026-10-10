@@ -412,28 +412,34 @@ get_fa_info <- function(idbc, UNITIDs = NULL){
   # df <- read_csv("data/IPEDS/2017/sfa1617.csv", guess_max = 5000) %>%
   # adds a given year to the df
 
-  # find all the tables
-  #tnames <- odbc::dbListTables(idbc, table_name = "sfa%")
-  tnames <- my_dbListTables(idbc, search_string = "^SFA\\d{4}")
+  # Include the main SFA table and its numbered parts, but not SFAV.
+  tnames <- my_dbListTables(idbc, search_string = "^SFA\\d")
 
-  # leave out the sfav ones
-  #tnames <- tnames[!str_detect(tnames,"SFAV")]
+  tnames <- tnames[
+    !sub("_P[0-9]+$", "", tnames) %in%
+      tnames[!grepl("_P[0-9]+$", tnames)] |
+      !grepl("_P[0-9]+$", tnames)
+  ]
 
-  tname_prefixes <- unique(substr(tnames,1,7))
-
+  # Group by the four-digit reporting-period code (e.g., SFA2324).
+  tname_prefixes <- unique(substr(tnames, 1, 7))
   out <- data.frame()
 
-  for(tname_prefix in tname_prefixes) {
-    Year <- 2000 + as.integer(substr(tname_prefix,4,5))
+  for (tname_prefix in tname_prefixes) {
+    Year <- 2000 + as.integer(substr(tname_prefix, 4, 5))
     print(Year)
 
-    tname_set <- tnames[ str_detect(tnames, tname_prefix)]
+    # Exact prefix match avoids mixing tables from different years.
+    tname_set <- sort(tnames[substr(tnames, 1, 7) == tname_prefix])
+    if (length(tname_set) == 0L) next
 
-    # start by joining all the tables in the set
-    df <- tbl(idbc,tname_set[1])
-
-    if(length(tname_set) == 2) df <- df %>% left_join(tbl(idbc,tname_set[2]))
-    if(length(tname_set) == 3) df <- df %>% left_join(tbl(idbc,tname_set[3]))
+    # Join all components by institution, not by incidental shared fields.
+    df <- tbl(idbc, tname_set[1])
+    if (length(tname_set) > 1L) {
+      for (part in tname_set[-1]) {
+        df <- df %>% left_join(tbl(idbc, part), by = "UNITID")
+      }
+    }
 
     if(Year < 2011) { ############ Old ones lacked some data
 
@@ -467,6 +473,37 @@ get_fa_info <- function(idbc, UNITIDs = NULL){
           N_48k              = NA,
           N_75k              = NA,
           N_110k             = NA,
+          Year = Year)
+
+    } else if (Year >= 2023) { # Redesigned SFA: net-price fields removed
+      df <- df %>%
+        select(UNITID,
+               N_undergraduates = SCFA2,
+               N_fall_cohort = SCFA1N,
+               Percent_PELL = FGRNT_P,
+               N_inst_aid = IGRNT_N,
+               Avg_inst_aid = IGRNT_A,
+               P_inst_aid = IGRNT_P,
+               T_inst_aid = IGRNT_T)
+
+      if (!is.null(UNITIDs)) {
+        df <- df %>% filter(UNITID %in% !!UNITIDs)
+      }
+
+      df <- df %>%
+        collect() %>%
+        mutate(
+          Avg_net_price = NA_real_,
+          Avg_net_price_0k = NA_real_,
+          Avg_net_price_30k = NA_real_,
+          Avg_net_price_48k = NA_real_,
+          Avg_net_price_75k = NA_real_,
+          Avg_net_price_110k = NA_real_,
+          N_0k = NA_real_,
+          N_30k = NA_real_,
+          N_48k = NA_real_,
+          N_75k = NA_real_,
+          N_110k = NA_real_,
           Year = Year)
 
     } else { # 2011 on
